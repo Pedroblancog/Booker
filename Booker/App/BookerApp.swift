@@ -20,7 +20,7 @@ struct BookerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LibraryView()
+            RootView()
         }
         .modelContainer(container)
     }

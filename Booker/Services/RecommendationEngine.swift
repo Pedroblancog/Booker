@@ -1,0 +1,98 @@
+import Foundation
+
+/// Una recomendación verificada: el libro existe y tenemos sus datos reales.
+struct Recommendation: Identifiable, Equatable, Sendable {
+    let book: BookSearchResult
+    let reason: String
+
+    var id: String { book.id }
+}
+
+/// Pide candidatos al recomendador y comprueba cada uno contra la búsqueda
+/// de libros (Google Books a través del backend, u Open Library). Los que no
+/// existen se descartan y se piden otros, hasta `maxRounds` rondas.
+struct RecommendationEngine: Sendable {
+    let recommender: any RecommendationService
+    let search: any BookSearchService
+    var maxRounds = 3
+
+    func recommendations(for favorites: [FavoriteBook], excluding: [String], count: Int) async throws -> [Recommendation] {
+        var verified: [Recommendation] = []
+        var exclude = excluding
+
+        for _ in 0..<maxRounds {
+            let missing = count - verified.count
+            guard missing > 0 else { break }
+
+            let candidates = try await recommender.candidates(for: favorites, excluding: exclude, count: missing)
+            guard !candidates.isEmpty else { break }
+            // Ni estos ni sus sustitutos deben volver a aparecer.
+            exclude += candidates.map { "\($0.title) — \($0.author)" }
+
+            let outcomes = await verifyAll(candidates)
+            if outcomes.allSatisfy({ $0 == .searchFailed }) { throw RecommendationError.unavailable }
+
+            for case .found(let recommendation) in outcomes
+            where !verified.contains(where: { $0.book.title.titleKey == recommendation.book.title.titleKey }) {
+                verified.append(recommendation)
+            }
+        }
+        return Array(verified.prefix(count))
+    }
+
+    enum Outcome: Equatable {
+        case found(Recommendation)
+        case notFound
+        case searchFailed
+    }
+
+    /// Verifica en paralelo, conservando el orden en que llegaron.
+    private func verifyAll(_ candidates: [RecommendationCandidate]) async -> [Outcome] {
+        await withTaskGroup(of: (Int, Outcome).self) { group in
+            for (index, candidate) in candidates.enumerated() {
+                group.addTask { (index, await verify(candidate)) }
+            }
+            var outcomes = [Outcome](repeating: .notFound, count: candidates.count)
+            for await (index, outcome) in group { outcomes[index] = outcome }
+            return outcomes
+        }
+    }
+
+    func verify(_ candidate: RecommendationCandidate) async -> Outcome {
+        let results: [BookSearchResult]
+        do {
+            results = try await search.search("\(candidate.title) \(candidate.author)")
+        } catch {
+            return .searchFailed
+        }
+        guard let match = results.prefix(10).first(where: { Self.matches(candidate, $0) }) else { return .notFound }
+        return .found(Recommendation(book: match, reason: candidate.reason))
+    }
+
+    /// Mismo título (ignorando subtítulo, tildes y puntuación) y el apellido
+    /// del autor entre los autores del resultado.
+    static func matches(_ candidate: RecommendationCandidate, _ result: BookSearchResult) -> Bool {
+        let wanted = candidate.title.titleKey
+        let found = result.title.titleKey
+        guard !wanted.isEmpty, !found.isEmpty,
+              wanted == found || found.hasPrefix(wanted) || wanted.hasPrefix(found)
+        else { return false }
+
+        guard let surname = candidate.author.matchKey.split(separator: " ").last.map(String.init) else { return true }
+        return result.authors.contains { $0.matchKey.contains(surname) }
+    }
+}
+
+extension String {
+    /// Título comparable: sin subtítulo, tildes, mayúsculas ni puntuación.
+    var titleKey: String {
+        let main = split(separator: ":", maxSplits: 1).first.map(String.init) ?? self
+        return main.matchKey
+            .unicodeScalars
+            .filter { CharacterSet.alphanumerics.contains($0) || $0 == " " }
+            .map(String.init)
+            .joined()
+            .split(separator: " ")
+            .joined(separator: " ")
+    }
+}

@@ -1,0 +1,13 @@
+// Configuración del backend propio (Cloudflare Worker, carpeta backend/).
+//
+// En Debug la app usa `npm run dev` en este Mac (el simulador lo ve como localhost).
+// Para usar el Worker desplegado, o un APP_TOKEN, copia Secrets.example.xcconfig
+// como Secrets.xcconfig en esta carpeta. Secrets.xcconfig no se sube a git.
+//
+// "/$()/" evita que "//" se lea como comentario en los .xcconfig.
+
+BOOKER_BACKEND_URL =
+BOOKER_BACKEND_URL[config=Debug] = http:/$()/localhost:8787
+BOOKER_BACKEND_TOKEN =
+
+#include? "Secrets.xcconfig"

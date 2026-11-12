@@ -16,6 +16,11 @@ targets:
     platform: iOS
     sources:
       - path: Booker
+        excludes:
+          - Config/Secrets.xcconfig
+    configFiles:
+      Debug: Booker/Config/Booker.xcconfig
+      Release: Booker/Config/Booker.xcconfig
     info:
       path: Booker/Info.plist
       properties:
@@ -25,6 +30,12 @@ targets:
         UILaunchScreen:
           UIColorName: Canvas
         UIApplicationSupportsIndirectInputEvents: true
+        # Backend propio: se definen en Booker/Config/Booker.xcconfig.
+        BookerBackendURL: $(BOOKER_BACKEND_URL)
+        BookerBackendToken: $(BOOKER_BACKEND_TOKEN)
+        # Permite http solo hacia localhost (wrangler dev en Debug).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
     settings:
@@ -45,6 +56,11 @@ targets:
     platform: iOS
     sources:
       - path: BookerTests
+        excludes:
+          - Fixtures
+      - path: BookerTests/Fixtures
+        type: folder
+        buildPhase: resources
     dependencies:
       - target: Booker
     settings:

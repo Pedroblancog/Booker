@@ -1,0 +1,20 @@
+{
+  "name": "booker-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Proxy mínimo de Booker: Google Books y recomendaciones con Claude. Las claves viven aquí, nunca en la app.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261112.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.160.1"
+  }
+}

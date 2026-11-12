@@ -9,6 +9,7 @@ extension DS {
         static let bookTitle = Font.system(.title2, design: .serif, weight: .regular)
         static let bookTitleCompact = Font.system(.headline, design: .serif, weight: .regular)
         static let emptyState = Font.system(.title3, design: .serif, weight: .regular).italic()
+        static let searchField = Font.system(.title3, design: .serif, weight: .regular)
 
         static let overline = Font.system(.caption, weight: .medium)
         static let meta = Font.system(.subheadline, weight: .light)
@@ -18,6 +19,9 @@ extension DS {
         /// Las notas se leen como texto de libro: serif a tamaño de cuerpo.
         static let notes = Font.system(.body, design: .serif, weight: .regular)
         static let caption = Font.system(.footnote, weight: .light)
+        /// El motivo de una recomendación: serif cursiva, como una cita.
+        static let reason = Font.system(.body, design: .serif, weight: .regular).italic()
+        static let stamp = Font.system(.footnote, weight: .semibold)
     }
 }
 

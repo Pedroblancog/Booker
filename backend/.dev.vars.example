@@ -1,0 +1,8 @@
+# Copia este archivo como .dev.vars para `npm run dev`. .dev.vars no se sube a git.
+
+# Sin claves, el Worker responde recomendaciones de ejemplo (útil para probar la app).
+MOCK_RECOMMENDATIONS=true
+
+# ANTHROPIC_API_KEY=sk-ant-...
+# GOOGLE_BOOKS_API_KEY=...
+# APP_TOKEN=un-texto-largo-y-aleatorio

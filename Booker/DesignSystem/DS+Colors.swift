@@ -5,6 +5,8 @@ extension DS {
     enum Colors {
         /// Fondo tipo papel, cálido en claro y casi negro en oscuro.
         static let canvas = Color(.canvas)
+        /// Superficie de tarjetas: un punto más clara que el papel (y que el negro en oscuro).
+        static let surface = Color(.surface)
         static let inkPrimary = Color(.inkPrimary)
         static let inkSecondary = Color(.inkSecondary)
         static let inkTertiary = Color(.inkTertiary)

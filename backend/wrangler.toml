@@ -1,0 +1,10 @@
+name = "booker"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Los secretos NO van aquí. Se configuran con:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put GOOGLE_BOOKS_API_KEY
+#   npx wrangler secret put APP_TOKEN
+# En local se leen de .dev.vars (ver .dev.vars.example).

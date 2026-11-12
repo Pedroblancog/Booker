@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// Portada de un libro con su estilo flotante. Usa la imagen en caché si existe
 /// y, si no, un placeholder generado. Para VoiceOver es un único elemento
@@ -19,9 +18,7 @@ struct BookCoverView: View {
 
     @ViewBuilder
     private var artwork: some View {
-        // SwiftUI no tiene en iOS 17 una forma de crear `Image` a partir de `Data`
-        // sin pasar por UIImage.
-        if let data = book.coverImageData, let image = UIImage(data: data) {
+        if let data = book.coverImageData, let image = Self.decodedCover(data, bookID: book.id) {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
@@ -32,5 +29,15 @@ struct BookCoverView: View {
                 colorHex: book.dominantColorHex ?? DS.CoverPalette.hex(for: book.title)
             )
         }
+    }
+
+    /// La portada guardada se decodifica una vez, reducida, y se reutiliza
+    /// en la cuadrícula y en el detalle.
+    private static func decodedCover(_ data: Data, bookID: UUID) -> UIImage? {
+        let key = "book-\(bookID)-\(data.count)"
+        if let cached = DecodedImageCache.shared.image(for: key) { return cached }
+        guard let image = ImageDecoding.image(from: data, maxPixelSize: 900) else { return nil }
+        DecodedImageCache.shared.insert(image, for: key)
+        return image
     }
 }

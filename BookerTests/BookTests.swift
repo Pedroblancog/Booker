@@ -4,15 +4,21 @@ import Testing
 
 @MainActor
 struct BookTests {
-    @Test func ratingIsClampedToOneThroughFive() throws {
+    @Test func ratingUsesHalfStepsBetweenHalfAndFive() throws {
         let context = try inMemoryContext()
         let book = Book(title: "Ficciones", authors: ["Jorge Luis Borges"], status: .read)
         context.insert(book)
 
+        book.setRating(3.5)
+        #expect(book.rating == 3.5)
+        book.setRating(3.7)
+        #expect(book.rating == 3.5)
+        book.setRating(3.8)
+        #expect(book.rating == 4)
         book.setRating(9)
         #expect(book.rating == 5)
         book.setRating(0)
-        #expect(book.rating == 1)
+        #expect(book.rating == 0.5)
         book.setRating(nil)
         #expect(book.rating == nil)
     }

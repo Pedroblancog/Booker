@@ -28,7 +28,7 @@ enum SampleData {
                 title: "Ficciones",
                 authors: ["Jorge Luis Borges"],
                 status: .read,
-                rating: 4,
+                rating: 4.5,
                 dateAdded: daysAgo(60),
                 dateFinished: daysAgo(45)
             ),

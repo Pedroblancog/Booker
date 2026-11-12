@@ -1,6 +1,5 @@
 import CoreGraphics
 import Foundation
-import ImageIO
 
 /// Calcula el color dominante de una portada como `#RRGGBB`.
 protocol DominantColorExtracting: Sendable {
@@ -19,19 +18,9 @@ struct CoreGraphicsColorExtractor: DominantColorExtracting {
     func dominantColorHex(from imageData: Data) async -> String? {
         let sampleSize = sampleSize
         return await Task.detached(priority: .utility) {
-            guard let image = Self.thumbnail(from: imageData, maxPixelSize: sampleSize) else { return nil }
+            guard let image = ImageDecoding.thumbnail(from: imageData, maxPixelSize: sampleSize) else { return nil }
             return Self.dominantColorHex(in: image)
         }.value
-    }
-
-    static func thumbnail(from data: Data, maxPixelSize: Int) -> CGImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
-        ]
-        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
 
     static func dominantColorHex(in image: CGImage) -> String? {

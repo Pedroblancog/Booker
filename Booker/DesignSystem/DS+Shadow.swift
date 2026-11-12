@@ -22,8 +22,29 @@ private struct CoverStyle: ViewModifier {
     }
 }
 
+/// Tarjeta que flota sobre el papel: esquinas amplias y sombra muy difusa.
+private struct CardStyle: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        let isDark = colorScheme == .dark
+        let shape = RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+
+        content
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(.white.opacity(isDark ? 0.06 : 0), lineWidth: 0.5)
+            }
+            .shadow(color: .black.opacity(isDark ? 0.5 : 0.10), radius: 30, y: 18)
+    }
+}
+
 extension View {
     func coverStyle() -> some View {
         modifier(CoverStyle())
+    }
+
+    func cardStyle() -> some View {
+        modifier(CardStyle())
     }
 }

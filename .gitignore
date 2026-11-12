@@ -3,3 +3,4 @@ xcuserdata/
 DerivedData/
 build/
 *.xcuserstate
+Booker/Config/Secrets.xcconfig

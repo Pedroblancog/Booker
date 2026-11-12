@@ -19,8 +19,10 @@ final class Book {
     /// Se persiste el valor bruto para poder filtrar con `#Predicate`.
     /// Usa `status` desde el resto de la app.
     var statusRaw: String
-    /// 1–5, solo para libros leídos. Se modifica con `setRating(_:)`.
-    private(set) var rating: Int?
+    /// De 0,5 a 5 en pasos de media estrella, solo para libros leídos.
+    /// Se modifica con `setRating(_:)`. Tiene otro nombre que el `rating`
+    /// entero de la versión anterior para que SwiftData migre sin pedir un plan.
+    private(set) var starRating: Double?
     var notes: String?
 
     var dateAdded: Date
@@ -39,7 +41,7 @@ final class Book {
         coverImageData: Data? = nil,
         dominantColorHex: String? = nil,
         status: BookStatus = .toRead,
-        rating: Int? = nil,
+        rating: Double? = nil,
         notes: String? = nil,
         dateAdded: Date = .now,
         dateFinished: Date? = nil,
@@ -54,7 +56,7 @@ final class Book {
         self.coverImageData = coverImageData
         self.dominantColorHex = dominantColorHex
         self.statusRaw = status.rawValue
-        self.rating = status == .read ? Book.clamped(rating) : nil
+        self.starRating = status == .read ? Book.normalized(rating) : nil
         self.notes = notes
         self.dateAdded = dateAdded
         self.dateFinished = status == .read ? (dateFinished ?? dateAdded) : nil
@@ -74,25 +76,28 @@ extension Book {
             if newValue == .read {
                 dateFinished = dateFinished ?? .now
             } else {
-                rating = nil
+                starRating = nil
                 dateFinished = nil
             }
         }
     }
+
+    var rating: Double? { starRating }
 
     var source: BookSource {
         get { BookSource(rawValue: sourceRaw) ?? .manual }
         set { sourceRaw = newValue.rawValue }
     }
 
-    /// Solo se aplica a libros leídos. Los valores se ajustan al rango 1–5.
-    func setRating(_ value: Int?) {
+    /// Solo se aplica a libros leídos. Redondea a la media estrella más
+    /// cercana y ajusta al rango 0,5–5.
+    func setRating(_ value: Double?) {
         guard status == .read else { return }
-        rating = Book.clamped(value)
+        starRating = Book.normalized(value)
     }
 
-    private static func clamped(_ value: Int?) -> Int? {
-        value.map { min(max($0, 1), 5) }
+    private static func normalized(_ value: Double?) -> Double? {
+        value.map { min(max(($0 * 2).rounded() / 2, 0.5), 5) }
     }
 }
 
@@ -111,6 +116,11 @@ extension Book {
 
     var accessibilityStatus: String {
         guard status == .read, let rating else { return status.title }
-        return "\(status.title), \(rating) de 5 estrellas"
+        return "\(status.title), \(Book.formattedRating(rating)) de 5 estrellas"
+    }
+
+    /// "4" o "3,5", según el idioma del dispositivo.
+    static func formattedRating(_ rating: Double) -> String {
+        rating.formatted(.number.precision(.fractionLength(0...1)))
     }
 }

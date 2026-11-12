@@ -1,17 +1,15 @@
 import SwiftUI
 
-/// Fondo de papel con un velo muy sutil del color de la portada que se
-/// desvanece hacia abajo. En oscuro el velo es algo más intenso, porque
-/// sobre negro los tonos apagados apenas se perciben.
-struct TintedBackground: View {
+/// Velo muy sutil del color de una portada que se desvanece hacia abajo.
+/// En oscuro es algo más intenso, porque sobre negro los tonos apagados
+/// apenas se perciben.
+struct TintGradient: View {
     let colorHex: String?
 
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
-            DS.Colors.canvas
-
             if let tint = colorHex.flatMap(HexColor.init)?.color {
                 let isDark = colorScheme == .dark
                 LinearGradient(
@@ -26,7 +24,19 @@ struct TintedBackground: View {
                 .transition(.opacity)
             }
         }
-        .ignoresSafeArea()
         .animation(DS.Motion.spring, value: colorHex)
+    }
+}
+
+/// Fondo de papel de una pantalla, teñido con el color de la portada.
+struct TintedBackground: View {
+    let colorHex: String?
+
+    var body: some View {
+        ZStack {
+            DS.Colors.canvas
+            TintGradient(colorHex: colorHex)
+        }
+        .ignoresSafeArea()
     }
 }

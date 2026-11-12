@@ -18,6 +18,8 @@ extension DS {
     enum Radius {
         /// Esquinas de portada: apenas redondeadas, como un libro real.
         static let cover: CGFloat = 4
+        /// Tarjetas grandes de Descubrir.
+        static let card: CGFloat = 28
     }
 
     enum Layout {
