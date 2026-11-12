@@ -1,16 +1,20 @@
 import SwiftUI
 
-/// Filtros como texto, sin cápsulas ni bordes: el seleccionado en tinta
-/// con un trazo fino debajo que se desliza al cambiar.
-struct StatusFilterBar: View {
-    @Binding var selection: LibraryFilter
+/// Selector de opciones como texto, sin cápsulas ni bordes: la opción
+/// seleccionada en tinta con un trazo fino debajo que se desliza al cambiar.
+/// Se usa en los filtros de la Biblioteca y en el estado del detalle.
+struct UnderlineSegmentedControl<Item: Identifiable & Hashable>: View {
+    let items: [Item]
+    @Binding var selection: Item
+    let title: (Item) -> String
+
     @Namespace private var underline
 
     var body: some View {
         ScrollView(.horizontal) {
             HStack(spacing: DS.Spacing.l) {
-                ForEach(LibraryFilter.allCases) { filter in
-                    item(for: filter)
+                ForEach(items) { item in
+                    segment(for: item)
                 }
             }
         }
@@ -19,14 +23,14 @@ struct StatusFilterBar: View {
         .sensoryFeedback(.selection, trigger: selection)
     }
 
-    private func item(for filter: LibraryFilter) -> some View {
-        let isSelected = filter == selection
+    private func segment(for item: Item) -> some View {
+        let isSelected = item == selection
 
         return Button {
-            withAnimation(DS.Motion.snappy) { selection = filter }
+            withAnimation(DS.Motion.snappy) { selection = item }
         } label: {
             VStack(spacing: DS.Spacing.xs) {
-                Text(filter.title)
+                Text(title(item))
                     .font(isSelected ? DS.Typography.menuSelected : DS.Typography.menu)
                     .foregroundStyle(isSelected ? DS.Colors.inkPrimary : DS.Colors.inkTertiary)
 

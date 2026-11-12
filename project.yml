@@ -37,3 +37,17 @@ targets:
         ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOLS: YES
         ENABLE_PREVIEWS: YES
         CODE_SIGN_STYLE: Automatic
+    scheme:
+      testTargets:
+        - BookerTests
+  BookerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: BookerTests
+    dependencies:
+      - target: Booker
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pedroblanco.booker.tests
+        GENERATE_INFOPLIST_FILE: YES

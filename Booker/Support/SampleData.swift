@@ -89,6 +89,15 @@ enum SampleData {
         }
     }()
 
+    /// Un libro del contenedor de previsualización, para los #Preview del detalle.
+    static func previewBook(titled title: String) -> Book {
+        let descriptor = FetchDescriptor<Book>(predicate: #Predicate { $0.title == title })
+        guard let book = try? previewContainer.mainContext.fetch(descriptor).first else {
+            fatalError("No hay ningún libro de prueba titulado «\(title)»")
+        }
+        return book
+    }
+
     private static func daysAgo(_ days: Int) -> Date {
         Calendar.current.date(byAdding: .day, value: -days, to: .now) ?? .now
     }

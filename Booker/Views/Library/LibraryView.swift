@@ -5,6 +5,7 @@ import SwiftUI
 struct LibraryView: View {
     @Query(sort: \Book.dateAdded, order: .reverse) private var books: [Book]
     @State private var filter: LibraryFilter = .all
+    @Namespace private var coverTransition
 
     private let columns = [
         GridItem(.flexible(), spacing: DS.Layout.gridColumnSpacing),
@@ -22,7 +23,7 @@ struct LibraryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                     header
-                    StatusFilterBar(selection: $filter)
+                    UnderlineSegmentedControl(items: LibraryFilter.allCases, selection: $filter) { $0.title }
 
                     if visibleBooks.isEmpty {
                         LibraryEmptyState(filter: filter)
@@ -38,6 +39,9 @@ struct LibraryView: View {
             .scrollIndicators(.hidden)
             .background(DS.Colors.canvas.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: Book.self) { book in
+                BookDetailView(book: book, transitionNamespace: coverTransition)
+            }
         }
     }
 
@@ -61,8 +65,13 @@ struct LibraryView: View {
     private var grid: some View {
         LazyVGrid(columns: columns, spacing: DS.Layout.gridRowSpacing) {
             ForEach(visibleBooks) { book in
-                BookCoverView(book: book)
-                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                NavigationLink(value: book) {
+                    BookCoverView(book: book)
+                        .zoomTransitionSource(id: book.id, in: coverTransition)
+                }
+                .buttonStyle(PressableButtonStyle())
+                .accessibilityHint("Abre el detalle")
+                .transition(.opacity.combined(with: .scale(scale: 0.94)))
             }
         }
     }

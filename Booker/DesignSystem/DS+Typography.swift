@@ -5,6 +5,7 @@ extension DS {
     /// Serif para títulos de libros; SF Pro ligera para metadatos y menús.
     enum Typography {
         static let display = Font.system(.largeTitle, design: .serif, weight: .regular)
+        static let detailTitle = Font.system(.title, design: .serif, weight: .regular)
         static let bookTitle = Font.system(.title2, design: .serif, weight: .regular)
         static let bookTitleCompact = Font.system(.headline, design: .serif, weight: .regular)
         static let emptyState = Font.system(.title3, design: .serif, weight: .regular).italic()
@@ -14,6 +15,9 @@ extension DS {
         static let menu = Font.system(.subheadline, weight: .light)
         static let menuSelected = Font.system(.subheadline, weight: .regular)
         static let body = Font.system(.body, weight: .light)
+        /// Las notas se leen como texto de libro: serif a tamaño de cuerpo.
+        static let notes = Font.system(.body, design: .serif, weight: .regular)
+        static let caption = Font.system(.footnote, weight: .light)
     }
 }
 
