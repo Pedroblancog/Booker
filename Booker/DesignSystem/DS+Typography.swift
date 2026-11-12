@@ -21,6 +21,8 @@ extension DS {
         static let caption = Font.system(.footnote, weight: .light)
         /// El motivo de una recomendación: serif cursiva, como una cita.
         static let reason = Font.system(.body, design: .serif, weight: .regular).italic()
+        /// Cita destacada (frases de tus notas), como en una revista.
+        static let pullQuote = Font.system(.title3, design: .serif, weight: .regular).italic()
         static let stamp = Font.system(.footnote, weight: .semibold)
     }
 }
@@ -31,7 +33,8 @@ extension View {
         font(DS.Typography.overline)
             .textCase(.uppercase)
             .tracking(1.6)
-            .foregroundStyle(DS.Colors.inkTertiary)
+            // Dorado: la firma de la "revista nocturna".
+            .foregroundStyle(DS.Colors.accent)
             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
 

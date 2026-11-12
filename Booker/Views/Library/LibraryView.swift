@@ -20,19 +20,36 @@ struct LibraryView: View {
         books.filter(filter.includes)
     }
 
+    private var readingNow: [Book] {
+        books.filter { $0.status == .reading }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                     header.screenHeaderStyle()
-                    UnderlineSegmentedControl(items: LibraryFilter.allCases, selection: $filter) { $0.title }
 
-                    if visibleBooks.isEmpty {
-                        LibraryEmptyState(filter: filter)
-                            .transition(.opacity)
-                    } else {
-                        grid
+                    // La "portada" de la revista: lo que lees y una frase tuya.
+                    if !readingNow.isEmpty {
+                        ReadingNowSection(books: readingNow, transitionNamespace: coverTransition)
                     }
+                    if let pick = NotesQuoteView.pick(from: books) {
+                        NotesQuoteView(book: pick.book, quote: pick.quote)
+                            .padding(.vertical, DS.Spacing.xs)
+                    }
+
+                    VStack(alignment: .leading, spacing: DS.Spacing.l) {
+                        UnderlineSegmentedControl(items: LibraryFilter.allCases, selection: $filter) { $0.title }
+
+                        if visibleBooks.isEmpty {
+                            LibraryEmptyState(filter: filter)
+                                .transition(.opacity)
+                        } else {
+                            grid
+                        }
+                    }
+                    .padding(.top, DS.Spacing.s)
                 }
                 .padding(.horizontal, DS.Spacing.gutter)
                 .padding(.top, DS.Spacing.l)
@@ -41,8 +58,8 @@ struct LibraryView: View {
             .scrollIndicators(.hidden)
             .background(DS.Colors.canvas.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(for: Book.self) { book in
-                BookDetailView(book: book, transitionNamespace: coverTransition)
+            .navigationDestination(for: BookRoute.self) { route in
+                BookDetailView(book: route.book, transitionNamespace: coverTransition, transitionID: route.transitionID)
             }
         }
     }
@@ -67,9 +84,9 @@ struct LibraryView: View {
     private var grid: some View {
         LazyVGrid(columns: columns, spacing: DS.Layout.gridRowSpacing) {
             ForEach(visibleBooks) { book in
-                NavigationLink(value: book) {
+                NavigationLink(value: BookRoute(book: book, source: .grid)) {
                     BookCoverView(book: book)
-                        .zoomTransitionSource(id: book.id, in: coverTransition)
+                        .zoomTransitionSource(id: BookRoute.transitionID(book, .grid), in: coverTransition)
                 }
                 .buttonStyle(PressableButtonStyle())
                 .accessibilityHint("Abre el detalle")
@@ -78,11 +95,16 @@ struct LibraryView: View {
         }
     }
 
+    /// "4 leídos este año · 9 en total", como el sumario de una revista.
     private var summary: String {
-        let total = books.count
-        let reading = books.filter { $0.status == .reading }.count
-        let totalText = total == 1 ? "1 libro" : "\(total) libros"
-        return reading > 0 ? "\(totalText) · \(reading) en curso" : totalText
+        let year = Calendar.current.component(.year, from: .now)
+        let readThisYear = books.filter {
+            $0.status == .read && $0.dateFinished.map { Calendar.current.component(.year, from: $0) } == year
+        }.count
+        let total = books.count == 1 ? "1 libro en total" : "\(books.count) en total"
+        guard readThisYear > 0 else { return total }
+        let read = readThisYear == 1 ? "1 leído este año" : "\(readThisYear) leídos este año"
+        return "\(read) · \(total)"
     }
 }
 

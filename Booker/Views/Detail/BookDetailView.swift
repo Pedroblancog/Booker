@@ -1,21 +1,29 @@
 import SwiftData
 import SwiftUI
 
-/// Detalle de un libro: portada grande, título, autor, puntuación (solo leídos),
-/// estado, notas y acciones discretas de editar y eliminar.
+/// Detalle de un libro: el libro se abre y muestra su primera página; debajo,
+/// puntuación (solo leídos), estado, notas y acciones discretas de editar y eliminar.
 struct BookDetailView: View {
     @Bindable var book: Book
     var transitionNamespace: Namespace.ID?
+    /// Origen de la transición zoom (cuadrícula, "Leyendo ahora"…).
+    var transitionID: String?
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dominantColorExtractor) private var colorExtractor
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var isEditing = false
     @State private var isConfirmingDelete = false
     @State private var saveCount = 0
+    @State private var isBookOpen = false
     @FocusState private var isEditingNotes: Bool
+
+    /// Con texto de accesibilidad el título no cabría en una página de libro:
+    /// se usa la portada con el título debajo.
+    private var usesOpeningBook: Bool { !dynamicTypeSize.isAccessibilitySize }
 
     var body: some View {
         ScrollView {
@@ -42,7 +50,8 @@ struct BookDetailView: View {
             }
         }
         .tint(DS.Colors.inkPrimary)
-        .zoomTransitionDestination(id: book.id, in: transitionNamespace)
+        .zoomTransitionDestination(id: transitionID ?? book.id.uuidString, in: transitionNamespace)
+        .sensoryFeedback(.impact(weight: .light), trigger: isBookOpen)
         .sheet(isPresented: $isEditing) {
             BookEditView(book: book) {
                 try? modelContext.save()
@@ -65,11 +74,64 @@ struct BookDetailView: View {
         .task {
             await colorExtractor.assignDominantColorIfNeeded(to: book)
         }
+        .task {
+            // Sin movimiento, el libro aparece ya abierto. Si no, se abre cuando
+            // ha terminado de llegar la portada desde la cuadrícula.
+            if reduceMotion {
+                isBookOpen = true
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(450))
+            withAnimation(.spring(duration: 0.9, bounce: 0.12)) { isBookOpen = true }
+        }
     }
 
     // MARK: - Secciones
 
+    @ViewBuilder
     private var hero: some View {
+        if usesOpeningBook {
+            openingBookHero
+        } else {
+            coverHero
+        }
+    }
+
+    /// El libro que se abre. Tocarlo lo cierra y lo vuelve a abrir.
+    private var openingBookHero: some View {
+        VStack(spacing: DS.Spacing.l) {
+            GeometryReader { proxy in
+                OpeningBookView(book: book, isOpen: isBookOpen, pageWidth: proxy.size.width * Self.pageFraction) {
+                    FirstPage(book: book)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(reduceMotion ? DS.Motion.reduced : .spring(duration: 0.8, bounce: 0.12)) {
+                        isBookOpen.toggle()
+                    }
+                }
+            }
+            // Alto de una página para el ancho disponible.
+            .aspectRatio(1 / (Self.pageFraction / DS.Layout.coverAspectRatio), contentMode: .fit)
+            .padding(.vertical, DS.Spacing.s)
+            .accessibilityAction(named: isBookOpen ? "Cerrar el libro" : "Abrir el libro") {
+                isBookOpen.toggle()
+            }
+
+            if book.status == .read {
+                StarRatingView(rating: book.rating) { book.setRating($0) }
+                    .transition(.appear(reduceMotion: reduceMotion))
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Cada página ocupa algo menos de la mitad del ancho: abierto, el pliego cabe entero.
+    private static let pageFraction: CGFloat = 0.48
+
+    /// Diseño para texto de accesibilidad: portada y, debajo, título y autor.
+    private var coverHero: some View {
         VStack(spacing: DS.Spacing.l) {
             BookCoverView(book: book)
                 .containerRelativeFrame(.horizontal) { length, _ in length * 0.56 }
@@ -104,13 +166,22 @@ struct BookDetailView: View {
         }
     }
 
+    /// Las notas se presentan como una cita de revista: cursiva y un filete dorado.
     private var notesSection: some View {
         DetailSection("Notas") {
-            TextField("Escribe lo que no quieras olvidar…", text: notesBinding, axis: .vertical)
-                .font(DS.Typography.notes)
-                .foregroundStyle(DS.Colors.inkPrimary)
-                .lineSpacing(4)
-                .focused($isEditingNotes)
+            HStack(alignment: .top, spacing: DS.Spacing.m) {
+                Rectangle()
+                    .fill(DS.Colors.accent)
+                    .frame(width: 1.5)
+                    .accessibilityHidden(true)
+
+                TextField("Escribe lo que no quieras olvidar…", text: notesBinding, axis: .vertical)
+                    .font(DS.Typography.reason)
+                    .foregroundStyle(DS.Colors.inkPrimary)
+                    .lineSpacing(4)
+                    .focused($isEditingNotes)
+            }
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
