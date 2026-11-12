@@ -132,7 +132,7 @@
 		C22F60AB51C7CA1668EB0E51 /* DS+Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DS+Colors.swift"; sourceTree = "<group>"; };
 		C55A56C6A10330F00553EAEC /* RecommendationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationEngine.swift; sourceTree = "<group>"; };
 		C57BDB2F9AF1F2A9646D7A4E /* SearchModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchModel.swift; sourceTree = "<group>"; };
-		D32D2A1FC522A2CEFAE32590 /* Booker.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Booker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D32D2A1FC522A2CEFAE32590 /* Booker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Booker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D472EA081B487C265B8129EE /* BookerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookerApp.swift; sourceTree = "<group>"; };
 		D4E8412845EC0EC180C21011 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		DA37932DAE4C79D26599085C /* BookImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookImporter.swift; sourceTree = "<group>"; };
@@ -534,6 +534,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N2PR75TUM3;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Booker/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -654,6 +655,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N2PR75TUM3;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Booker/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
