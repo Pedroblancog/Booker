@@ -19,6 +19,16 @@ struct URLSessionHTTPClient: HTTPClient {
         var request = request
         // Open Library pide identificar la app en las peticiones.
         request.setValue("Booker/0.1 (iOS; registro personal de lectura)", forHTTPHeaderField: "User-Agent")
+        do {
+            return try await perform(request)
+        } catch let error as URLError where error.code == .networkConnectionLost {
+            // URLSession reutiliza conexiones HTTP/3 inactivas que a veces ya han
+            // muerto en silencio. Un único reintento abre una conexión nueva.
+            return try await perform(request)
+        }
+    }
+
+    private func perform(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         return (data, http)

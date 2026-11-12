@@ -11,15 +11,24 @@ struct UnderlineSegmentedControl<Item: Identifiable & Hashable>: View {
     @Namespace private var underline
 
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: DS.Spacing.l) {
-                ForEach(items) { item in
-                    segment(for: item)
+        // Con texto grande las opciones no caben: la fila se desplaza y se
+        // asegura de que la seleccionada esté a la vista.
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                HStack(spacing: DS.Spacing.l) {
+                    ForEach(items) { item in
+                        segment(for: item)
+                            .id(item.id)
+                    }
                 }
             }
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled()
+            .onAppear { proxy.scrollTo(selection.id) }
+            .onChange(of: selection) { _, newValue in
+                withAnimation(DS.Motion.snappy) { proxy.scrollTo(newValue.id) }
+            }
         }
-        .scrollIndicators(.hidden)
-        .scrollClipDisabled()
         .sensoryFeedback(.selection, trigger: selection)
     }
 

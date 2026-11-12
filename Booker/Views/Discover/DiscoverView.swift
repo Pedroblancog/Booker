@@ -16,6 +16,7 @@ struct DiscoverView: View {
     @State private var pendingSwipe: SwipeDirection?
     @State private var savedCount = 0
     @State private var discardedCount = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var engine: RecommendationEngine {
         RecommendationEngine(recommender: recommendationService, search: searchService)
@@ -27,7 +28,7 @@ struct DiscoverView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.l) {
-            header
+            header.screenHeaderStyle()
                 .padding(.horizontal, DS.Spacing.gutter)
 
             content
@@ -40,7 +41,7 @@ struct DiscoverView: View {
             await model.refreshIfNeeded(library: library, engine: engine)
         }
         .onChange(of: model.cards.map(\.id)) { _, _ in
-            ImageDataCache.shared.prefetch(model.cards.compactMap(\.book.previewCoverURL))
+            ImageDataCache.shared.prefetch(model.cards.flatMap(\.book.previewCoverURLs))
         }
         .sensoryFeedback(.success, trigger: savedCount)
         .sensoryFeedback(.impact(weight: .light), trigger: discardedCount)
@@ -133,12 +134,16 @@ struct DiscoverView: View {
 
             HStack(spacing: DS.Spacing.s) {
                 actionButton("Descartar", systemImage: "xmark", direction: .discard)
-                Text("Desliza para decidir")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.Colors.inkTertiary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityHidden(true)
+                if dynamicTypeSize.isAccessibilitySize {
+                    Spacer()
+                } else {
+                    Text("Desliza para decidir")
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.Colors.inkTertiary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityHidden(true)
+                }
                 actionButton("Guardar", systemImage: "bookmark", direction: .save)
             }
             .padding(.horizontal, DS.Spacing.gutter)
@@ -150,7 +155,9 @@ struct DiscoverView: View {
         Button {
             pendingSwipe = direction
         } label: {
+            // Con texto de accesibilidad, solo el icono: el nombre sigue llegando a VoiceOver.
             Label(title, systemImage: systemImage)
+                .labelStyle(AdaptiveLabelStyle(iconOnly: dynamicTypeSize.isAccessibilitySize))
                 .font(DS.Typography.menuSelected)
                 .foregroundStyle(direction == .save ? DS.Colors.inkPrimary : DS.Colors.inkSecondary)
                 .padding(.horizontal, DS.Spacing.m)
@@ -189,6 +196,22 @@ struct DiscoverView: View {
     }
 }
 
+/// Icono y texto, o solo icono. `Label` conserva el texto como etiqueta accesible.
+private struct AdaptiveLabelStyle: LabelStyle {
+    let iconOnly: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if iconOnly {
+            configuration.icon
+        } else {
+            HStack(spacing: DS.Spacing.xs) {
+                configuration.icon
+                configuration.title
+            }
+        }
+    }
+}
+
 // MARK: - Carga
 
 /// Una tarjeta fantasma que late mientras el librero piensa.
@@ -206,9 +229,7 @@ private struct DiscoverLoadingView: View {
                         Capsule().fill(DS.Colors.inkTertiary.opacity(0.15)).frame(width: 180, height: 16)
                         Capsule().fill(DS.Colors.inkTertiary.opacity(0.12)).frame(width: 120, height: 12)
                     }
-                    .phaseAnimator([false, true]) { content, isDim in
-                        content.opacity(isDim ? 0.45 : 1)
-                    } animation: { _ in .easeInOut(duration: 1) }
+                    .loadingPulse()
                 }
                 .cardStyle()
 

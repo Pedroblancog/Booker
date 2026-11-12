@@ -3,6 +3,15 @@ main = "src/index.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Workers AI: modelos abiertos dentro de Cloudflare, con cuota diaria gratuita.
+# Se usa para las recomendaciones cuando no hay ANTHROPIC_API_KEY.
+[ai]
+binding = "AI"
+
+[vars]
+# Gratis en el plan Free y rápido (~3 s). Alternativa probada: "@cf/qwen/qwen3.8-27b" (~8 s).
+WORKERS_AI_MODEL = "@cf/openai/gpt-oss-120b"
+
 # Los secretos NO van aquí. Se configuran con:
 #   npx wrangler secret put ANTHROPIC_API_KEY
 #   npx wrangler secret put GOOGLE_BOOKS_API_KEY

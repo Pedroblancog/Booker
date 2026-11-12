@@ -6,16 +6,45 @@ struct RecommendationCard: View {
     let recommendation: Recommendation
 
     @Environment(\.dominantColorExtractor) private var colorExtractor
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var tintHex: String?
 
     private var book: BookSearchResult { recommendation.book }
 
     var body: some View {
+        // Si un motivo largo o el texto grande no caben, primero se encoge la
+        // portada; solo si aun así no cabe, la tarjeta se puede desplazar.
+        ViewThatFits(in: .vertical) {
+            content(coverFraction: dynamicTypeSize.isAccessibilitySize ? 0.28 : 0.42)
+            content(coverFraction: 0.3)
+            ScrollView { content(coverFraction: 0.28) }
+                .scrollIndicators(.hidden)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            ZStack {
+                DS.Colors.surface
+                TintGradient(colorHex: tintHex)
+            }
+        }
+        .cardStyle()
+        .accessibilityElement(children: .combine)
+        .task(id: book.previewCoverURLs) {
+            for url in book.previewCoverURLs {
+                guard let data = await ImageDataCache.shared.imageData(for: url) else { continue }
+                tintHex = await colorExtractor.dominantColorHex(from: data)
+                return
+            }
+        }
+    }
+
+    /// `coverFraction`: ancho de la portada respecto a la tarjeta.
+    private func content(coverFraction: CGFloat) -> some View {
         VStack(spacing: DS.Spacing.l) {
             Spacer(minLength: DS.Spacing.m)
 
-            RemoteCoverView(url: book.previewCoverURL, title: book.title, author: book.authorLine)
-                .containerRelativeFrame(.horizontal) { width, _ in width * 0.42 }
+            RemoteCoverView(urls: book.previewCoverURLs, title: book.title, author: book.authorLine)
+                .containerRelativeFrame(.horizontal) { width, _ in width * coverFraction }
 
             VStack(spacing: DS.Spacing.xs) {
                 Text(book.title)
@@ -48,20 +77,6 @@ struct RecommendationCard: View {
         }
         .padding(.horizontal, DS.Spacing.l)
         .padding(.vertical, DS.Spacing.l)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background {
-            ZStack {
-                DS.Colors.surface
-                TintGradient(colorHex: tintHex)
-            }
-        }
-        .cardStyle()
-        .accessibilityElement(children: .combine)
-        .task(id: book.previewCoverURL) {
-            guard let url = book.previewCoverURL,
-                  let data = await ImageDataCache.shared.imageData(for: url)
-            else { return }
-            tintHex = await colorExtractor.dominantColorHex(from: data)
-        }
+        .frame(maxWidth: .infinity)
     }
 }

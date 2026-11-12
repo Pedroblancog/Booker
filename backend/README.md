@@ -7,7 +7,13 @@ la app nunca las ve.
 |---|---|
 | `GET /health` | Dice qué está configurado. No necesita token. |
 | `GET /books/v1/volumes?q=…` | Reenvía la búsqueda a Google Books añadiendo `GOOGLE_BOOKS_API_KEY`. |
-| `POST /recommendations` | Pide recomendaciones a Claude (`claude-opus-5-5`) y devuelve JSON. |
+| `POST /recommendations` | Pide recomendaciones a un modelo de IA y devuelve JSON. |
+
+Las recomendaciones salen, por orden de preferencia, de:
+
+1. **Claude** (`claude-opus-5-5`), si existe el secreto `ANTHROPIC_API_KEY`. De pago por uso.
+2. **Workers AI** (`WORKERS_AI_MODEL` en `wrangler.toml`, ahora `@cf/openai/gpt-oss-120b`).
+   Gratis dentro de la cuota diaria del plan Free de Cloudflare. Es lo que se usa por defecto.
 
 `POST /recommendations` recibe:
 
@@ -43,13 +49,12 @@ que la app lo descarta. La app en Debug usa `http://localhost:8787`.
    ```
 2. Guarda los secretos (te pedirá cada valor):
    ```bash
-   npx wrangler secret put ANTHROPIC_API_KEY
    npx wrangler secret put GOOGLE_BOOKS_API_KEY
    npx wrangler secret put APP_TOKEN
    ```
-   - `ANTHROPIC_API_KEY`: de console.anthropic.com.
-   - `GOOGLE_BOOKS_API_KEY`: en Google Cloud Console, activa "Books API" y crea una clave.
-   - `APP_TOKEN`: un texto largo y aleatorio. Opcional, pero evita que cualquiera use tu backend.
+   - `GOOGLE_BOOKS_API_KEY`: en Google Cloud Console, activa "Books API" y crea una clave restringida a esa API. Gratuita.
+   - `APP_TOKEN`: un texto largo y aleatorio. Evita que cualquiera use tu backend.
+   - Opcional y de pago: `npx wrangler secret put ANTHROPIC_API_KEY` para usar Claude en vez de Workers AI.
 3. Despliega:
    ```bash
    npm run deploy

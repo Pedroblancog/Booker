@@ -71,6 +71,45 @@ struct RecommendationEngineTests {
         #expect(RecommendationEngine.matches(candidate("Rayuela", "Julio Cortázar"), result))
     }
 
+    @Test func prefersEditionWithCoverThenOldest() {
+        let cover = URL(string: "https://example.com/c.jpg")
+        let recentNoCover = BookSearchResult(id: "1", source: .googleBooks, title: "El reino de este mundo",
+                                             authors: ["Alejo Carpentier"], publishedYear: 2026)
+        let recentWithCover = BookSearchResult(id: "2", source: .googleBooks, title: "El reino de este mundo",
+                                               authors: ["Alejo Carpentier"], publishedYear: 2015, thumbnailURL: cover)
+        let originalWithCover = BookSearchResult(id: "3", source: .googleBooks, title: "El reino de este mundo",
+                                                 authors: ["Alejo Carpentier"], publishedYear: 1949, thumbnailURL: cover)
+
+        let wanted = candidate("El reino de este mundo", "Alejo Carpentier")
+        let best = [recentNoCover, recentWithCover, originalWithCover]
+            .min(by: { RecommendationEngine.isPreferredEdition($0, $1, of: wanted) })
+
+        #expect(best?.id == "3")
+    }
+
+    @Test func avoidsStudyGuidesWithTheSameTitle() {
+        let cover = URL(string: "https://example.com/c.jpg")
+        let guide = BookSearchResult(id: "guia", source: .googleBooks, title: "La casa de los espíritus",
+                                     subtitle: "Análisis y estudio sobre la obra", authors: ["Isabel Allende"],
+                                     publishedYear: 1990, thumbnailURL: cover)
+        let novel = BookSearchResult(id: "novela", source: .googleBooks, title: "La casa de los espíritus",
+                                     authors: ["Isabel Allende"], publishedYear: 2001, thumbnailURL: cover)
+
+        let wanted = candidate("La casa de los espíritus", "Isabel Allende")
+        #expect([guide, novel].min(by: { RecommendationEngine.isPreferredEdition($0, $1, of: wanted) })?.id == "novela")
+    }
+
+    @Test func prefersExactTitleOverOmnibus() {
+        let cover = URL(string: "https://example.com/c.jpg")
+        let omnibus = BookSearchResult(id: "doble", source: .googleBooks, title: "El reino de este mundo ; Los pasos perdidos",
+                                       authors: ["Alejo Carpentier"], publishedYear: 1983, thumbnailURL: cover)
+        let single = BookSearchResult(id: "solo", source: .googleBooks, title: "El reino de este mundo",
+                                      authors: ["Alejo Carpentier"], publishedYear: 2004, thumbnailURL: cover)
+        let wanted = candidate("El reino de este mundo", "Alejo Carpentier")
+
+        #expect([omnibus, single].min(by: { RecommendationEngine.isPreferredEdition($0, $1, of: wanted) })?.id == "solo")
+    }
+
     @Test func stopsAfterMaxRounds() async throws {
         let fake = [candidate("No existe", "Nadie")]
         let recommender = ScriptedRecommender(rounds: [fake, fake, fake, fake])

@@ -1,8 +1,13 @@
 import { proxyGoogleBooks } from "./googleBooks";
-import { handleRecommendations } from "./recommendations";
+import { handleRecommendations, recommendationProvider } from "./recommendations";
 import { json } from "./http";
 
 export interface Env {
+  /** Workers AI (gratis dentro de la cuota diaria). */
+  AI?: Ai;
+  /** Modelo de Workers AI; se define en wrangler.toml para cambiarlo sin tocar código. */
+  WORKERS_AI_MODEL?: string;
+  /** Opcional: si está, las recomendaciones las hace Claude en vez de Workers AI. */
   ANTHROPIC_API_KEY?: string;
   GOOGLE_BOOKS_API_KEY?: string;
   /** Si está definido, la app debe enviarlo en la cabecera X-Booker-Token. */
@@ -19,7 +24,7 @@ export default {
       return json({
         ok: true,
         googleBooks: Boolean(env.GOOGLE_BOOKS_API_KEY),
-        recommendations: Boolean(env.ANTHROPIC_API_KEY) ? "claude" : env.MOCK_RECOMMENDATIONS === "true" ? "mock" : "off",
+        recommendations: recommendationProvider(env),
       });
     }
 

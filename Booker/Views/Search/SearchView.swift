@@ -15,7 +15,7 @@ struct SearchView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                header
+                header.screenHeaderStyle()
                 SearchField(text: $model.query, isLoading: model.isLoading, isFocused: $isFieldFocused)
                 content
             }
@@ -46,7 +46,7 @@ struct SearchView: View {
     /// los que más se abren. Así, al desplazarse o abrir uno, ya están.
     private func prefetchCovers(for results: [BookSearchResult]) {
         let thumbnails = results.compactMap(\.thumbnailURL)
-        let previews = results.prefix(5).compactMap(\.previewCoverURL)
+        let previews = results.prefix(5).compactMap(\.previewCoverURLs.first)
         ImageDataCache.shared.prefetch(thumbnails + previews)
     }
 
@@ -181,11 +181,7 @@ private struct SearchLoadingView: View {
             }
         }
         .foregroundStyle(DS.Colors.inkTertiary.opacity(0.18))
-        .phaseAnimator([false, true]) { content, isDim in
-            content.opacity(isDim ? 0.5 : 1)
-        } animation: { _ in
-            .easeInOut(duration: 0.9)
-        }
+        .loadingPulse()
         .accessibilityElement()
         .accessibilityLabel("Buscando libros")
     }

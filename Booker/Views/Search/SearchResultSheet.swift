@@ -17,7 +17,7 @@ struct SearchResultSheet: View {
     var body: some View {
         ScrollView {
             VStack(spacing: DS.Spacing.xl) {
-                RemoteCoverView(url: result.previewCoverURL, title: result.title, author: result.authorLine)
+                RemoteCoverView(urls: result.previewCoverURLs, title: result.title, author: result.authorLine)
                     .frame(width: 150)
                     .padding(.top, DS.Spacing.xl)
 

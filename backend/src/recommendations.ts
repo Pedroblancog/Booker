@@ -22,7 +22,11 @@ export interface Recommendation {
   reason: string;
 }
 
-const MODEL = "claude-opus-5-5";
+type Provider = "mock" | "claude" | "workers-ai" | "off";
+
+const CLAUDE_MODEL = "claude-opus-5-5";
+/** Modelo abierto de Workers AI: incluido en el plan gratuito, con salida JSON. */
+const DEFAULT_WORKERS_AI_MODEL = "@cf/openai/gpt-oss-120b";
 
 const SYSTEM_PROMPT = `Eres el librero de una librería independiente pequeña, con criterio propio y buena memoria lectora.
 Un lector te comparte los libros que más ha disfrutado, con su puntuación de 0,5 a 5 estrellas.
@@ -52,6 +56,14 @@ const RESPONSE_SCHEMA = {
   additionalProperties: false,
 };
 
+/** Quién genera las recomendaciones, por orden de preferencia. */
+export function recommendationProvider(env: Env): Provider {
+  if (env.MOCK_RECOMMENDATIONS === "true") return "mock";
+  if (env.ANTHROPIC_API_KEY) return "claude";
+  if (env.AI) return "workers-ai";
+  return "off";
+}
+
 export async function handleRecommendations(request: Request, env: Env): Promise<Response> {
   let body: unknown;
   try {
@@ -62,16 +74,21 @@ export async function handleRecommendations(request: Request, env: Env): Promise
   const input = parseRequest(body);
   if (!input) return json({ error: "invalid_request" }, 400);
 
-  if (!env.ANTHROPIC_API_KEY) {
-    if (env.MOCK_RECOMMENDATIONS === "true") {
-      return json({ recommendations: mockRecommendations(input), source: "mock" });
-    }
-    return json({ error: "recommendations_not_configured" }, 503);
-  }
-
+  const provider = recommendationProvider(env);
   try {
-    const recommendations = await recommendWithClaude(input, env.ANTHROPIC_API_KEY);
-    return json({ recommendations, source: "claude" });
+    switch (provider) {
+      case "mock":
+        return json({ recommendations: mockRecommendations(input), source: provider });
+      case "claude":
+        return json({ recommendations: await recommendWithClaude(input, env.ANTHROPIC_API_KEY!), source: provider });
+      case "workers-ai":
+        return json({
+          recommendations: await recommendWithWorkersAI(input, env.AI!, env.WORKERS_AI_MODEL ?? DEFAULT_WORKERS_AI_MODEL),
+          source: provider,
+        });
+      case "off":
+        return json({ error: "recommendations_not_configured" }, 503);
+    }
   } catch (error) {
     if (error instanceof RefusalError) return json({ error: "refused" }, 502);
     if (error instanceof InvalidOutputError) return json({ error: "invalid_model_output" }, 502);
@@ -84,20 +101,19 @@ export async function handleRecommendations(request: Request, env: Env): Promise
       console.error(`Anthropic API error ${error.status}`, error.message);
       return json({ error: "upstream" }, 502);
     }
-    throw error;
+    // Workers AI lanza errores genéricos (cuota diaria agotada, modelo no disponible…).
+    console.error(`Error de ${provider}`, error);
+    return json({ error: "upstream" }, 502);
   }
 }
+
+// MARK: - Proveedores
 
 async function recommendWithClaude(input: RecommendationRequest, apiKey: string): Promise<Recommendation[]> {
   const client = new Anthropic({ apiKey });
 
-  const favorites = input.favorites
-    .map((book) => `- ${book.title} — ${book.authors.join(", ") || "autor desconocido"} (${book.rating} ★)`)
-    .join("\n");
-  const exclude = input.exclude.length > 0 ? input.exclude.map((title) => `- ${title}`).join("\n") : "(ninguno)";
-
   const response = await client.beta.messages.create({
-    model: MODEL,
+    model: CLAUDE_MODEL,
     max_tokens: 16000,
     // Si un clasificador de seguridad rechaza la petición, la API la repite
     // con el modelo alternativo que recomienda Anthropic.
@@ -108,22 +124,74 @@ async function recommendWithClaude(input: RecommendationRequest, apiKey: string)
       format: { type: "json_schema", schema: RESPONSE_SCHEMA },
     },
     system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: `Mis libros favoritos:\n${favorites}\n\nNo me recomiendes ninguno de estos:\n${exclude}\n\nRecomiéndame exactamente ${input.count} libros.`,
-      },
-    ],
+    messages: [{ role: "user", content: userPrompt(input) }],
   });
 
   if (response.stop_reason === "refusal") throw new RefusalError();
-
   const text = response.content.find((block) => block.type === "text");
   if (!text || text.type !== "text") throw new InvalidOutputError();
+  return parseRecommendations(text.text, input.count);
+}
+
+/** Formas de respuesta de Workers AI: chat estilo OpenAI, `response` o `output` estilo Responses. */
+interface WorkersAIResponse {
+  choices?: { message?: { content?: string | null } }[];
+  response?: unknown;
+  output?: { type?: string; content?: { type?: string; text?: string }[] }[];
+}
+
+async function recommendWithWorkersAI(input: RecommendationRequest, ai: Ai, model: string): Promise<Recommendation[]> {
+  // El catálogo de tipos de Workers AI no siempre incluye los modelos más nuevos,
+  // así que se llama con una firma genérica.
+  const run = ai.run.bind(ai) as unknown as (model: string, body: unknown) => Promise<WorkersAIResponse>;
+
+  const result = await run(model, {
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userPrompt(input) },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "recommendations", schema: RESPONSE_SCHEMA, strict: true },
+    },
+    // Sin razonamiento largo: responde antes y gasta menos cuota gratuita.
+    // Los modelos que no conocen estos campos los ignoran.
+    reasoning_effort: "low",
+    chat_template_kwargs: { enable_thinking: false },
+    max_tokens: 2000,
+  });
+
+  const content =
+    result.choices?.[0]?.message?.content ??
+    result.output?.flatMap((item) => item.content ?? []).find((part) => part.type === "output_text")?.text ??
+    result.response;
+  if (content && typeof content === "object") return parseRecommendations(JSON.stringify(content), input.count);
+  if (typeof content !== "string") {
+    console.error("Respuesta de Workers AI sin texto", JSON.stringify(result).slice(0, 500));
+    throw new InvalidOutputError();
+  }
+  return parseRecommendations(content, input.count);
+}
+
+// MARK: - Comunes
+
+function userPrompt(input: RecommendationRequest): string {
+  const favorites = input.favorites
+    .map((book) => `- ${book.title} — ${book.authors.join(", ") || "autor desconocido"} (${book.rating} ★)`)
+    .join("\n");
+  const exclude = input.exclude.length > 0 ? input.exclude.map((title) => `- ${title}`).join("\n") : "(ninguno)";
+  return `Mis libros favoritos:\n${favorites}\n\nNo me recomiendes ninguno de estos:\n${exclude}\n\nRecomiéndame exactamente ${input.count} libros.`;
+}
+
+/** Acepta el JSON del modelo aunque venga rodeado de texto o de un bloque ```json. */
+function parseRecommendations(text: string, count: number): Recommendation[] {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new InvalidOutputError();
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text.text);
+    parsed = JSON.parse(text.slice(start, end + 1));
   } catch {
     throw new InvalidOutputError();
   }
@@ -135,7 +203,13 @@ async function recommendWithClaude(input: RecommendationRequest, apiKey: string)
       (item): item is Recommendation =>
         typeof item?.title === "string" && typeof item?.author === "string" && typeof item?.reason === "string",
     )
-    .slice(0, input.count);
+    .slice(0, count)
+    .map((item) => ({ title: plain(item.title), author: plain(item.author), reason: plain(item.reason) }));
+}
+
+/** La app muestra texto plano: quita el énfasis Markdown que algunos modelos añaden. */
+function plain(text: string): string {
+  return text.replace(/(\*\*|\*|__|_)(.+?)\1/g, "$2").trim();
 }
 
 /** Valida el cuerpo y recorta tamaños para no mandar al modelo más de lo necesario. */

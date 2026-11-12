@@ -65,8 +65,24 @@ struct RecommendationEngine: Sendable {
         } catch {
             return .searchFailed
         }
-        guard let match = results.prefix(10).first(where: { Self.matches(candidate, $0) }) else { return .notFound }
+        let matches = results.prefix(10).filter { Self.matches(candidate, $0) }
+        guard let match = matches.min(by: { Self.isPreferredEdition($0, $1, of: candidate) }) else { return .notFound }
         return .found(Recommendation(book: match, reason: candidate.reason))
+    }
+
+    /// Entre ediciones del mismo libro, por orden: con portada; con el título
+    /// exacto (no un volumen doble que solo empieza igual); sin subtítulo
+    /// (descarta guías de estudio que comparten título); y la más antigua
+    /// (las reediciones recientes darían un año engañoso).
+    static func isPreferredEdition(_ a: BookSearchResult, _ b: BookSearchResult, of candidate: RecommendationCandidate) -> Bool {
+        let wanted = candidate.title.titleKey
+        func rank(_ book: BookSearchResult) -> (Int, Int, Int, Int) {
+            (book.thumbnailURL == nil ? 1 : 0,
+             book.title.titleKey == wanted ? 0 : 1,
+             (book.subtitle?.isEmpty ?? true) ? 0 : 1,
+             book.publishedYear ?? .max)
+        }
+        return rank(a) < rank(b)
     }
 
     /// Mismo título (ignorando subtítulo, tildes y puntuación) y el apellido

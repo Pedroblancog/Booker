@@ -3,9 +3,11 @@ import SwiftUI
 
 /// Pantalla principal: cuadrícula de portadas en dos columnas, filtrable por estado.
 struct LibraryView: View {
-    @Query(sort: \Book.dateAdded, order: .reverse) private var books: [Book]
+    /// Animado: un libro añadido desde Buscar o Descubrir entra en la cuadrícula con un muelle.
+    @Query(sort: \Book.dateAdded, order: .reverse, animation: DS.Motion.spring) private var books: [Book]
     @State private var filter: LibraryFilter = .all
     @Namespace private var coverTransition
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let columns = [
         GridItem(.flexible(), spacing: DS.Layout.gridColumnSpacing),
@@ -22,7 +24,7 @@ struct LibraryView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                    header
+                    header.screenHeaderStyle()
                     UnderlineSegmentedControl(items: LibraryFilter.allCases, selection: $filter) { $0.title }
 
                     if visibleBooks.isEmpty {
@@ -71,7 +73,7 @@ struct LibraryView: View {
                 }
                 .buttonStyle(PressableButtonStyle())
                 .accessibilityHint("Abre el detalle")
-                .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                .transition(.appear(reduceMotion: reduceMotion))
             }
         }
     }

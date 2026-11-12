@@ -10,6 +10,7 @@ struct BookDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dominantColorExtractor) private var colorExtractor
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var isEditing = false
     @State private var isConfirmingDelete = false
@@ -91,7 +92,7 @@ struct BookDetailView: View {
 
             if book.status == .read {
                 StarRatingView(rating: book.rating) { book.setRating($0) }
-                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    .transition(.appear(reduceMotion: reduceMotion))
             }
         }
         .frame(maxWidth: .infinity)

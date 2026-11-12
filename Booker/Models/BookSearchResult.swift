@@ -24,10 +24,15 @@ struct BookSearchResult: Identifiable, Hashable, Sendable {
     /// no tiene portada o la suya es de baja resolución.
     var openLibraryCoverURLs: [URL] = []
 
-    /// Portada para verla en grande: la de Open Library a tamaño L si la hay,
-    /// porque la miniatura de Google se ve borrosa a ese tamaño.
-    var previewCoverURL: URL? {
-        openLibraryCoverURLs.first ?? googleCoverURL ?? thumbnailURL
+    /// Portadas para verla en grande, en orden de preferencia: las de Open
+    /// Library a tamaño L (la miniatura de Google se ve borrosa a ese tamaño)
+    /// y, si no existen, la de Google.
+    var previewCoverURLs: [URL] {
+        var urls: [URL] = []
+        for url in openLibraryCoverURLs + [googleCoverURL, thumbnailURL].compactMap({ $0 }) where !urls.contains(url) {
+            urls.append(url)
+        }
+        return urls
     }
 
     var authorLine: String {

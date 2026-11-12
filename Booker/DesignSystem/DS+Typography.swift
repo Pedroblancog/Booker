@@ -32,5 +32,13 @@ extension View {
             .textCase(.uppercase)
             .tracking(1.6)
             .foregroundStyle(DS.Colors.inkTertiary)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+    }
+
+    /// Cabecera de pantalla (rótulo, título grande y subtítulo). Escala con
+    /// Dynamic Type hasta el primer tamaño de accesibilidad: más allá, un título
+    /// gigante no gana legibilidad y deja sin sitio al contenido, que sí sigue creciendo.
+    func screenHeaderStyle() -> some View {
+        dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
 }

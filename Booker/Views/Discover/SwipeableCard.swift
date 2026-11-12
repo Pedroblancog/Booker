@@ -21,6 +21,8 @@ struct SwipeableCard<Content: View>: View {
     @State private var offset: CGSize = .zero
     @State private var isPastThreshold = false
     @State private var isLeaving = false
+    @State private var opacity = 1.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let threshold: CGFloat = 110
 
@@ -35,7 +37,9 @@ struct SwipeableCard<Content: View>: View {
                     .opacity(Double(max(0, -offset.width) / threshold))
             }
             .offset(x: offset.width, y: offset.height * 0.15)
-            .rotationEffect(.degrees(Double(offset.width / 24)), anchor: .bottom)
+            // El giro es decorativo: con "Reducir movimiento" la tarjeta solo se desplaza.
+            .rotationEffect(.degrees(reduceMotion ? 0 : Double(offset.width / 24)), anchor: .bottom)
+            .opacity(opacity)
             .gesture(drag)
             .sensoryFeedback(.impact(weight: .light), trigger: isPastThreshold) { _, isPast in isPast }
             .onChange(of: programmaticSwipe) { _, direction in
@@ -63,13 +67,22 @@ struct SwipeableCard<Content: View>: View {
             }
     }
 
+    /// Sale volando hacia ese lado; con "Reducir movimiento", se funde sin cruzar la pantalla.
     private func fly(_ direction: SwipeDirection) {
         guard !isLeaving else { return }
         isLeaving = true
-        withAnimation(.spring(duration: 0.35, bounce: 0), completionCriteria: .logicallyComplete) {
-            offset = CGSize(width: direction.sign * 700, height: offset.height + 40)
-        } completion: {
-            onSwipe(direction)
+        if reduceMotion {
+            withAnimation(DS.Motion.reduced, completionCriteria: .logicallyComplete) {
+                opacity = 0
+            } completion: {
+                onSwipe(direction)
+            }
+        } else {
+            withAnimation(.spring(duration: 0.35, bounce: 0), completionCriteria: .logicallyComplete) {
+                offset = CGSize(width: direction.sign * 700, height: offset.height + 40)
+            } completion: {
+                onSwipe(direction)
+            }
         }
     }
 

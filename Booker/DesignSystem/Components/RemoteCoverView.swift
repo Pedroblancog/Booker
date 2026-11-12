@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// Portada que se descarga de una URL a través de `ImageDataCache`.
+/// Portada que se descarga a través de `ImageDataCache`. Recibe varias URL
+/// en orden de preferencia y usa la primera que tenga imagen.
 /// Si ya se vio antes aparece al instante; si no, muestra el placeholder
 /// generado y funde a la imagen real cuando llega.
 /// Es decorativa: la etiqueta accesible la pone la vista que la contiene.
 struct RemoteCoverView: View {
-    let url: URL?
+    let urls: [URL]
     let title: String
     let author: String?
     /// Tamaño máximo en píxeles al decodificar. Las miniaturas no necesitan más.
@@ -13,12 +14,18 @@ struct RemoteCoverView: View {
 
     @State private var image: UIImage?
 
-    init(url: URL?, title: String, author: String?, maxPixelSize: Int = 600) {
-        self.url = url
+    init(urls: [URL], title: String, author: String?, maxPixelSize: Int = 600) {
+        self.urls = urls
         self.title = title
         self.author = author
         self.maxPixelSize = maxPixelSize
-        _image = State(initialValue: url.flatMap { DecodedImageCache.shared.image(for: Self.cacheKey($0, maxPixelSize)) })
+        _image = State(initialValue: urls.lazy.compactMap {
+            DecodedImageCache.shared.image(for: Self.cacheKey($0, maxPixelSize))
+        }.first)
+    }
+
+    init(url: URL?, title: String, author: String?, maxPixelSize: Int = 600) {
+        self.init(urls: url.map { [$0] } ?? [], title: title, author: author, maxPixelSize: maxPixelSize)
     }
 
     var body: some View {
@@ -36,24 +43,26 @@ struct RemoteCoverView: View {
             }
             .coverStyle()
             .accessibilityHidden(true)
-            .task(id: url) { await load() }
+            .task(id: urls) { await load() }
     }
 
     private func load() async {
-        guard let url else { return }
-        let key = Self.cacheKey(url, maxPixelSize)
-        if let cached = DecodedImageCache.shared.image(for: key) {
-            image = cached
+        for url in urls {
+            let key = Self.cacheKey(url, maxPixelSize)
+            if let cached = DecodedImageCache.shared.image(for: key) {
+                image = cached
+                return
+            }
+            guard let data = await ImageDataCache.shared.imageData(for: url) else { continue }
+            let size = maxPixelSize
+            let decoded = await Task.detached(priority: .userInitiated) {
+                ImageDecoding.image(from: data, maxPixelSize: size)
+            }.value
+            guard let decoded, !Task.isCancelled else { return }
+            DecodedImageCache.shared.insert(decoded, for: key)
+            withAnimation(DS.Motion.spring) { image = decoded }
             return
         }
-        guard let data = await ImageDataCache.shared.imageData(for: url) else { return }
-        let size = maxPixelSize
-        let decoded = await Task.detached(priority: .userInitiated) {
-            ImageDecoding.image(from: data, maxPixelSize: size)
-        }.value
-        guard let decoded, !Task.isCancelled else { return }
-        DecodedImageCache.shared.insert(decoded, for: key)
-        withAnimation(DS.Motion.spring) { image = decoded }
     }
 
     private static func cacheKey(_ url: URL, _ maxPixelSize: Int) -> String {
