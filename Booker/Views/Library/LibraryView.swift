@@ -1,18 +1,22 @@
 import SwiftData
 import SwiftUI
 
-/// Pantalla principal: cuadrícula de portadas en dos columnas, filtrable por estado.
+/// Pantalla principal: cuadrícula de portadas en tres columnas, filtrable por estado.
 struct LibraryView: View {
     /// Animado: un libro añadido desde Buscar o Descubrir entra en la cuadrícula con un muelle.
     @Query(sort: \Book.dateAdded, order: .reverse, animation: DS.Motion.spring) private var books: [Book]
     @State private var filter: LibraryFilter = .all
-    @Namespace private var coverTransition
+    @State private var path: [BookRoute] = []
+    /// El libro que se está abriendo, y desde dónde.
+    @State private var opening: (route: BookRoute, frame: CGRect)?
+    @State private var coverFrames = CoverFrames()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let columns = [
-        GridItem(.flexible(), spacing: DS.Layout.gridColumnSpacing),
-        GridItem(.flexible(), spacing: DS.Layout.gridColumnSpacing),
-    ]
+    /// Alineadas abajo: cada portada a su proporción, apoyadas como en una estantería.
+    private let columns = Array(
+        repeating: GridItem(.flexible(), spacing: DS.Layout.gridColumnSpacing, alignment: .bottom),
+        count: DS.Layout.gridColumns
+    )
 
     /// Se filtra en memoria (y no con un `#Predicate`) para que la cuadrícula
     /// pueda animar la entrada y salida de portadas al cambiar de filtro.
@@ -25,14 +29,14 @@ struct LibraryView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                     header.screenHeaderStyle()
 
                     // La "portada" de la revista: lo que lees y una frase tuya.
                     if !readingNow.isEmpty {
-                        ReadingNowSection(books: readingNow, transitionNamespace: coverTransition)
+                        ReadingNowSection(books: readingNow, coverFrames: coverFrames, openingID: opening?.route.transitionID, open: open)
                     }
                     if let pick = NotesQuoteView.pick(from: books) {
                         NotesQuoteView(book: pick.book, quote: pick.quote)
@@ -59,8 +63,31 @@ struct LibraryView: View {
             .background(DS.Colors.canvas.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: BookRoute.self) { route in
-                BookDetailView(book: route.book, transitionNamespace: coverTransition, transitionID: route.transitionID)
+                BookDetailView(book: route.book)
             }
+        }
+        .overlay {
+            if let opening {
+                BookOpeningOverlay(book: opening.route.book, sourceFrame: opening.frame) {
+                    // La ficha entra por debajo, sin la animación de navegación.
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { path.append(opening.route) }
+                } onFinish: {
+                    self.opening = nil
+                }
+            }
+        }
+    }
+
+    /// Abre un libro: con la animación del libro que se abre si se conoce
+    /// la posición de su portada; si no (o sin movimiento), navegando sin más.
+    private func open(_ route: BookRoute) {
+        guard opening == nil else { return }
+        if !reduceMotion, let frame = coverFrames[route.transitionID] {
+            opening = (route, frame)
+        } else {
+            path.append(route)
         }
     }
 
@@ -84,9 +111,12 @@ struct LibraryView: View {
     private var grid: some View {
         LazyVGrid(columns: columns, spacing: DS.Layout.gridRowSpacing) {
             ForEach(visibleBooks) { book in
-                NavigationLink(value: BookRoute(book: book, source: .grid)) {
+                let route = BookRoute(book: book, source: .grid)
+                Button { open(route) } label: {
                     BookCoverView(book: book)
-                        .zoomTransitionSource(id: BookRoute.transitionID(book, .grid), in: coverTransition)
+                        .recordsCoverFrame(id: route.transitionID, in: coverFrames)
+                        // Mientras se abre, la portada está "fuera" de la estantería.
+                        .opacity(opening?.route == route ? 0 : 1)
                 }
                 .buttonStyle(PressableButtonStyle())
                 .accessibilityHint("Abre el detalle")

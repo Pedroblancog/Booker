@@ -33,7 +33,7 @@ struct GoogleBooksSearchService: BookSearchService {
         let isbn13 = identifiers.first { $0.type == "ISBN_13" }?.identifier
         let isbn10 = identifiers.first { $0.type == "ISBN_10" }?.identifier
         let isbn = isbn13 ?? isbn10
-        let thumbnail = (info.imageLinks?.thumbnail ?? info.imageLinks?.smallThumbnail).flatMap(secureCoverURL)
+        let cover = (info.imageLinks?.thumbnail ?? info.imageLinks?.smallThumbnail).flatMap(secureCoverURL)
 
         return BookSearchResult(
             id: "gb:\(volume.id)",
@@ -44,8 +44,8 @@ struct GoogleBooksSearchService: BookSearchService {
             authors: info.authors ?? [],
             isbn: isbn,
             publishedYear: BookSearchResult.year(from: info.publishedDate),
-            thumbnailURL: thumbnail,
-            googleCoverURL: thumbnail,
+            thumbnailURL: cover.map { sized($0, width: 300, height: 450) },
+            googleCoverURL: cover.map { sized($0, width: 1000, height: 1500) },
             openLibraryCoverURLs: isbn.map {
                 [URL(string: "https://covers.openlibrary.org/b/isbn/\($0)-L.jpg?default=false")!]
             } ?? []
@@ -59,6 +59,16 @@ struct GoogleBooksSearchService: BookSearchService {
         components.scheme = "https"
         components.queryItems = components.queryItems?.filter { $0.name != "edge" }
         return components.url
+    }
+
+    /// La miniatura de Google mide unos 128 px. El parámetro `fife` pide la
+    /// misma portada al tamaño que se necesite (hasta el del escaneo original).
+    static func sized(_ url: URL, width: Int, height: Int) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        var items = (components.queryItems ?? []).filter { $0.name != "fife" }
+        items.append(URLQueryItem(name: "fife", value: "w\(width)-h\(height)"))
+        components.queryItems = items
+        return components.url ?? url
     }
 
     // Los nombres siguen el JSON de Google Books.

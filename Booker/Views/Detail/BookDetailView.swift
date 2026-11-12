@@ -1,36 +1,33 @@
 import SwiftData
 import SwiftUI
 
-/// Detalle de un libro: el libro se abre y muestra su primera página; debajo,
-/// puntuación (solo leídos), estado, notas y acciones discretas de editar y eliminar.
+/// Ficha de un libro, a la que se llega abriéndolo desde la biblioteca:
+/// arriba la portada, con título y autor; debajo, los marcapáginas de estado
+/// y lo que corresponde a cada uno (nada si está pendiente, comentarios mientras
+/// se lee, valoración y conclusión al terminarlo) y acciones discretas de
+/// editar y eliminar.
 struct BookDetailView: View {
     @Bindable var book: Book
-    var transitionNamespace: Namespace.ID?
-    /// Origen de la transición zoom (cuadrícula, "Leyendo ahora"…).
-    var transitionID: String?
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dominantColorExtractor) private var colorExtractor
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var isEditing = false
     @State private var isConfirmingDelete = false
     @State private var saveCount = 0
-    @State private var isBookOpen = false
+    @State private var commentEditor: CommentEditorTarget?
+    /// El comentario abierto en el pop-up.
+    @State private var expandedComment: ReadingNote?
     @FocusState private var isEditingNotes: Bool
-
-    /// Con texto de accesibilidad el título no cabría en una página de libro:
-    /// se usa la portada con el título debajo.
-    private var usesOpeningBook: Bool { !dynamicTypeSize.isAccessibilitySize }
 
     var body: some View {
         ScrollView {
             VStack(spacing: DS.Spacing.xxl) {
-                hero
+                header
                 statusSection
-                notesSection
+                stageSection
                 footer
             }
             .padding(.horizontal, DS.Spacing.gutter)
@@ -44,14 +41,17 @@ struct BookDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Listo") { isEditingNotes = false }
+            // Solo mientras se escribe la conclusión: si no, aparecería también
+            // sobre el teclado de la hoja de comentarios.
+            if isEditingNotes {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Listo") { isEditingNotes = false }
+                }
             }
         }
         .tint(DS.Colors.inkPrimary)
-        .zoomTransitionDestination(id: transitionID ?? book.id.uuidString, in: transitionNamespace)
-        .sensoryFeedback(.impact(weight: .light), trigger: isBookOpen)
+        .sensoryFeedback(.selection, trigger: book.status)
         .sheet(isPresented: $isEditing) {
             BookEditView(book: book) {
                 try? modelContext.save()
@@ -65,7 +65,7 @@ struct BookDetailView: View {
         ) {
             Button("Eliminar libro", role: .destructive, action: deleteBook)
         } message: {
-            Text("Se borrarán también tu puntuación y tus notas.")
+            Text("Se borrarán también tu valoración, tu conclusión y tus comentarios.")
         }
         .sensoryFeedback(.success, trigger: saveCount)
         .onChange(of: isEditingNotes) { _, isFocused in
@@ -74,115 +74,124 @@ struct BookDetailView: View {
         .task {
             await colorExtractor.assignDominantColorIfNeeded(to: book)
         }
-        .task {
-            // Sin movimiento, el libro aparece ya abierto. Si no, se abre cuando
-            // ha terminado de llegar la portada desde la cuadrícula.
-            if reduceMotion {
-                isBookOpen = true
-                return
+        .onAppear(perform: moveLegacyNotesToComment)
+        .sheet(item: $commentEditor) { target in
+            CommentEditor(book: book, note: target.note) { saveCount += 1 }
+        }
+        .overlay {
+            if let note = expandedComment {
+                CommentPopup(note: note) {
+                    closeComment()
+                    commentEditor = .existing(note)
+                } onDelete: {
+                    closeComment()
+                    book.removeReadingNote(note)
+                } onClose: {
+                    closeComment()
+                }
+                .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.94)))
             }
-            try? await Task.sleep(for: .milliseconds(450))
-            withAnimation(.spring(duration: 0.9, bounce: 0.12)) { isBookOpen = true }
+        }
+        // La barra de pestañas se aparta mientras el pop-up está abierto.
+        .toolbar(expandedComment == nil ? .automatic : .hidden, for: .tabBar)
+    }
+
+    private func closeComment() {
+        withAnimation(reduceMotion ? DS.Motion.reduced : .spring(duration: 0.3, bounce: 0)) {
+            expandedComment = nil
         }
     }
 
     // MARK: - Secciones
 
-    @ViewBuilder
-    private var hero: some View {
-        if usesOpeningBook {
-            openingBookHero
-        } else {
-            coverHero
-        }
-    }
-
-    /// El libro que se abre. Tocarlo lo cierra y lo vuelve a abrir.
-    private var openingBookHero: some View {
-        VStack(spacing: DS.Spacing.l) {
-            GeometryReader { proxy in
-                OpeningBookView(book: book, isOpen: isBookOpen, pageWidth: proxy.size.width * Self.pageFraction) {
-                    FirstPage(book: book)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(reduceMotion ? DS.Motion.reduced : .spring(duration: 0.8, bounce: 0.12)) {
-                        isBookOpen.toggle()
-                    }
-                }
-            }
-            // Alto de una página para el ancho disponible.
-            .aspectRatio(1 / (Self.pageFraction / DS.Layout.coverAspectRatio), contentMode: .fit)
-            .padding(.vertical, DS.Spacing.s)
-            .accessibilityAction(named: isBookOpen ? "Cerrar el libro" : "Abrir el libro") {
-                isBookOpen.toggle()
-            }
-
-            if book.status == .read {
-                StarRatingView(rating: book.rating) { book.setRating($0) }
-                    .transition(.appear(reduceMotion: reduceMotion))
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    /// Cada página ocupa algo menos de la mitad del ancho: abierto, el pliego cabe entero.
-    private static let pageFraction: CGFloat = 0.48
-
-    /// Diseño para texto de accesibilidad: portada y, debajo, título y autor.
-    private var coverHero: some View {
-        VStack(spacing: DS.Spacing.l) {
+    /// La portada, protagonista, y debajo título y autor. El estado ya lo
+    /// dicen los marcapáginas.
+    private var header: some View {
+        VStack(spacing: DS.Spacing.s) {
             BookCoverView(book: book)
-                .containerRelativeFrame(.horizontal) { length, _ in length * 0.56 }
-                .padding(.bottom, DS.Spacing.s)
+                .containerRelativeFrame(.horizontal) { width, _ in width * 0.52 }
+                .padding(.bottom, DS.Spacing.l)
 
-            VStack(spacing: DS.Spacing.xs) {
-                Text(book.title)
-                    .font(DS.Typography.detailTitle)
-                    .foregroundStyle(DS.Colors.inkPrimary)
+            Text(book.title)
+                .font(DS.Typography.detailTitle)
+                .foregroundStyle(DS.Colors.inkPrimary)
+                .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
+
+            if !book.authors.isEmpty {
+                Text(book.authorLine)
+                    .font(DS.Typography.meta)
+                    .foregroundStyle(DS.Colors.inkSecondary)
                     .multilineTextAlignment(.center)
-                    .accessibilityAddTraits(.isHeader)
-
-                if !book.authors.isEmpty {
-                    Text(book.authorLine)
-                        .font(DS.Typography.meta)
-                        .foregroundStyle(DS.Colors.inkSecondary)
-                        .multilineTextAlignment(.center)
-                }
             }
 
-            if book.status == .read {
-                StarRatingView(rating: book.rating) { book.setRating($0) }
-                    .transition(.appear(reduceMotion: reduceMotion))
-            }
+            Rectangle()
+                .fill(DS.Colors.accent)
+                .frame(width: 24, height: 1)
+                .padding(.top, DS.Spacing.xs)
+                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity)
+        .padding(.top, DS.Spacing.l)
     }
 
+    /// Marcapáginas: la cinta del estado elegido cuelga hasta abajo.
     private var statusSection: some View {
         DetailSection("Estado") {
-            UnderlineSegmentedControl(items: BookStatus.allCases, selection: $book.status) { $0.title }
+            RibbonStatusPicker(selection: $book.status)
         }
     }
 
-    /// Las notas se presentan como una cita de revista: cursiva y un filete dorado.
-    private var notesSection: some View {
-        DetailSection("Notas") {
+    /// Lo que se puede hacer en cada momento de la lectura.
+    @ViewBuilder
+    private var stageSection: some View {
+        switch book.status {
+        case .toRead:
+            // Pendiente: aún no hay nada que apuntar.
+            EmptyView()
+        case .reading:
+            ReadingNotesSection(book: book, editor: $commentEditor, expanded: $expandedComment)
+                .transition(.appear(reduceMotion: reduceMotion))
+        case .read:
+            VStack(spacing: DS.Spacing.xxl) {
+                DetailSection("Tu valoración") {
+                    StarRatingView(rating: book.rating) { book.setRating($0) }
+                }
+                conclusionSection
+            }
+            .transition(.appear(reduceMotion: reduceMotion))
+        }
+    }
+
+    /// La conclusión, como una cita de revista: cursiva y un filete dorado.
+    private var conclusionSection: some View {
+        DetailSection("Conclusión") {
             HStack(alignment: .top, spacing: DS.Spacing.m) {
                 Rectangle()
                     .fill(DS.Colors.accent)
                     .frame(width: 1.5)
                     .accessibilityHidden(true)
 
-                TextField("Escribe lo que no quieras olvidar…", text: notesBinding, axis: .vertical)
+                TextField("¿Con qué te quedas de este libro?", text: notesBinding, axis: .vertical)
                     .font(DS.Typography.reason)
                     .foregroundStyle(DS.Colors.inkPrimary)
                     .lineSpacing(4)
+                    .lineLimit(3...)
                     .focused($isEditingNotes)
+                    .accessibilityLabel("Conclusión")
             }
             .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// Antes había una sola nota libre por libro. En un libro que se está
+    /// leyendo esa nota pasa a ser su primer comentario, para que no quede oculta.
+    private func moveLegacyNotesToComment() {
+        guard book.status == .reading, book.readingNotes.isEmpty,
+              let notes = book.notes, book.addReadingNote(page: nil, text: notes) != nil
+        else { return }
+        book.notes = nil
+        try? modelContext.save()
     }
 
     private var footer: some View {

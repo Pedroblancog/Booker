@@ -3,18 +3,18 @@ import SwiftUI
 /// Portada que se descarga a través de `ImageDataCache`. Recibe varias URL
 /// en orden de preferencia y usa la primera que tenga imagen.
 /// Si ya se vio antes aparece al instante; si no, muestra el placeholder
-/// generado y funde a la imagen real cuando llega.
+/// generado y funde a la imagen real cuando llega, a su proporción real.
 /// Es decorativa: la etiqueta accesible la pone la vista que la contiene.
 struct RemoteCoverView: View {
     let urls: [URL]
     let title: String
     let author: String?
     /// Tamaño máximo en píxeles al decodificar. Las miniaturas no necesitan más.
-    var maxPixelSize = 600
+    var maxPixelSize = 1200
 
     @State private var image: UIImage?
 
-    init(urls: [URL], title: String, author: String?, maxPixelSize: Int = 600) {
+    init(urls: [URL], title: String, author: String?, maxPixelSize: Int = 1200) {
         self.urls = urls
         self.title = title
         self.author = author
@@ -24,18 +24,16 @@ struct RemoteCoverView: View {
         }.first)
     }
 
-    init(url: URL?, title: String, author: String?, maxPixelSize: Int = 600) {
+    init(url: URL?, title: String, author: String?, maxPixelSize: Int = 1200) {
         self.init(urls: url.map { [$0] } ?? [], title: title, author: author, maxPixelSize: maxPixelSize)
     }
 
     var body: some View {
         Color.clear
-            .aspectRatio(DS.Layout.coverAspectRatio, contentMode: .fit)
+            .aspectRatio(image.map(CoverArtwork.aspectRatio(of:)) ?? DS.Layout.coverAspectRatio, contentMode: .fit)
             .overlay {
                 if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
+                    CoverArtwork(image: image)
                         .transition(.opacity)
                 } else {
                     CoverPlaceholderView(title: title, author: author, colorHex: DS.CoverPalette.hex(for: title))
@@ -50,7 +48,7 @@ struct RemoteCoverView: View {
         for url in urls {
             let key = Self.cacheKey(url, maxPixelSize)
             if let cached = DecodedImageCache.shared.image(for: key) {
-                image = cached
+                if cached !== image { withAnimation(DS.Motion.spring) { image = cached } }
                 return
             }
             guard let data = await ImageDataCache.shared.imageData(for: url) else { continue }

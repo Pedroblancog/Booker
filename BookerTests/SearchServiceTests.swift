@@ -86,6 +86,8 @@ struct GoogleBooksSearchTests {
         let cover = try #require(first.googleCoverURL?.absoluteString)
         #expect(cover.hasPrefix("https://"))
         #expect(!cover.contains("edge=curl"))
+        #expect(cover.contains("fife=w1000-h1500"))
+        #expect(first.thumbnailURL?.absoluteString.contains("fife=w300-h450") == true)
         #expect(first.openLibraryCoverURLs.first?.absoluteString.contains("9788415130307") == true)
 
         #expect(results[1].thumbnailURL == nil)
@@ -106,59 +108,76 @@ struct GoogleBooksSearchTests {
 // MARK: - Portadas
 
 struct CoverImageServiceTests {
+    let appleURL = URL(string: "https://is1-ssl.mzstatic.com/image/thumb/x/1600x1600bb.jpg")!
     let googleURL = URL(string: "https://books.google.com/cover")!
     let openLibraryURL = URL(string: "https://covers.openlibrary.org/b/id/1-L.jpg")!
 
+    struct StubLookup: CoverLookup {
+        let url: URL?
+        func coverURL(title: String, author: String?) async -> URL? { url }
+    }
+
     var result: BookSearchResult {
-        BookSearchResult(id: "x", source: .googleBooks, title: "Stoner", authors: [],
+        BookSearchResult(id: "x", source: .googleBooks, title: "Stoner", authors: ["John Williams"],
                          googleCoverURL: googleURL, openLibraryCoverURLs: [openLibraryURL])
     }
 
+    func service(_ responses: [URL: (Int, Data)], apple: URL? = nil) -> CoverImageService {
+        CoverImageService(images: ImageDataCache(http: MockHTTPClient(responses: responses), directory: nil),
+                          lookup: StubLookup(url: apple))
+    }
+
+    @Test func prefersTheAppleBooksCover() async throws {
+        let cover = await service([
+            appleURL: (200, try pngData(width: 1000, height: 1600)),
+            googleURL: (200, try pngData(width: 978, height: 1500)),
+        ], apple: appleURL).bestCover(for: result)
+        #expect(cover?.url == appleURL)
+        #expect(cover?.pixelHeight == 1600)
+    }
+
     @Test func keepsGoogleCoverWhenItIsLargeEnough() async throws {
-        let http = MockHTTPClient(responses: [
-            googleURL: (200, try png(width: 400, height: 600)),
-            openLibraryURL: (200, try png(width: 300, height: 500)),
-        ])
-        let cover = await CoverImageService(images: ImageDataCache(http: http, directory: nil)).bestCover(for: result)
+        let cover = await service([
+            googleURL: (200, try pngData(width: 978, height: 1500)),
+            openLibraryURL: (200, try pngData(width: 300, height: 500)),
+        ]).bestCover(for: result)
         #expect(cover?.url == googleURL)
     }
 
-    @Test func usesOpenLibraryWhenGoogleCoverIsLowResolution() async throws {
-        let http = MockHTTPClient(responses: [
-            googleURL: (200, try png(width: 128, height: 190)),
-            openLibraryURL: (200, try png(width: 300, height: 500)),
-        ])
-        let cover = await CoverImageService(images: ImageDataCache(http: http, directory: nil)).bestCover(for: result)
+    @Test func keepsTheLargestWhenNoneIsSharpEnough() async throws {
+        let cover = await service([
+            appleURL: (200, try pngData(width: 200, height: 300)),
+            googleURL: (200, try pngData(width: 128, height: 190)),
+            openLibraryURL: (200, try pngData(width: 300, height: 500)),
+        ], apple: appleURL).bestCover(for: result)
         #expect(cover?.url == openLibraryURL)
         #expect(cover?.pixelHeight == 500)
     }
 
-    @Test func keepsLowResolutionGoogleCoverIfThereIsNothingBetter() async throws {
-        let http = MockHTTPClient(responses: [googleURL: (200, try png(width: 128, height: 190))])
-        let cover = await CoverImageService(images: ImageDataCache(http: http, directory: nil)).bestCover(for: result)
+    @Test func keepsLowResolutionCoverIfThereIsNothingBetter() async throws {
+        let cover = await service([googleURL: (200, try pngData(width: 128, height: 190))]).bestCover(for: result)
         #expect(cover?.url == googleURL)
     }
 
     @Test func ignoresOnePixelPlaceholders() async throws {
-        let http = MockHTTPClient(responses: [openLibraryURL: (200, try png(width: 1, height: 1))])
-        let cover = await CoverImageService(images: ImageDataCache(http: http, directory: nil)).bestCover(for: result)
+        let cover = await service([openLibraryURL: (200, try pngData(width: 1, height: 1))]).bestCover(for: result)
         #expect(cover == nil)
     }
+}
 
-    private func png(width: Int, height: Int) throws -> Data {
-        let context = try #require(CGContext(
-            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ))
-        context.setFillColor(CGColor(srgbRed: 0.2, green: 0.3, blue: 0.4, alpha: 1))
-        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-        let image = try #require(context.makeImage())
-        let data = NSMutableData()
-        let destination = try #require(CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil))
-        CGImageDestinationAddImage(destination, image, nil)
-        CGImageDestinationFinalize(destination)
-        return data as Data
-    }
+func pngData(width: Int, height: Int) throws -> Data {
+    let context = try #require(CGContext(
+        data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ))
+    context.setFillColor(CGColor(srgbRed: 0.2, green: 0.3, blue: 0.4, alpha: 1))
+    context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    let image = try #require(context.makeImage())
+    let data = NSMutableData()
+    let destination = try #require(CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil))
+    CGImageDestinationAddImage(destination, image, nil)
+    CGImageDestinationFinalize(destination)
+    return data as Data
 }
 
 // MARK: - Buscador y biblioteca

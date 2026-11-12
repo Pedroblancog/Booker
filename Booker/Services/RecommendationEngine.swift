@@ -85,30 +85,8 @@ struct RecommendationEngine: Sendable {
         return rank(a) < rank(b)
     }
 
-    /// Mismo título (ignorando subtítulo, tildes y puntuación) y el apellido
-    /// del autor entre los autores del resultado.
     static func matches(_ candidate: RecommendationCandidate, _ result: BookSearchResult) -> Bool {
-        let wanted = candidate.title.titleKey
-        let found = result.title.titleKey
-        guard !wanted.isEmpty, !found.isEmpty,
-              wanted == found || found.hasPrefix(wanted) || wanted.hasPrefix(found)
-        else { return false }
-
-        guard let surname = candidate.author.matchKey.split(separator: " ").last.map(String.init) else { return true }
-        return result.authors.contains { $0.matchKey.contains(surname) }
-    }
-}
-
-extension String {
-    /// Título comparable: sin subtítulo, tildes, mayúsculas ni puntuación.
-    var titleKey: String {
-        let main = split(separator: ":", maxSplits: 1).first.map(String.init) ?? self
-        return main.matchKey
-            .unicodeScalars
-            .filter { CharacterSet.alphanumerics.contains($0) || $0 == " " }
-            .map(String.init)
-            .joined()
-            .split(separator: " ")
-            .joined(separator: " ")
+        BookMatching.matches(title: candidate.title, author: candidate.author,
+                             candidateTitle: result.title, candidateAuthors: result.authors)
     }
 }

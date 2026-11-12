@@ -35,12 +35,14 @@ enum ImageDecoding {
 /// Imágenes ya decodificadas, listas para pintar. Se consulta de forma
 /// síncrona al crear una vista, para que lo ya visto aparezca sin parpadeo.
 /// `NSCache` es seguro entre hilos y libera memoria por sí solo si hace falta.
+/// Se limita por bytes: una portada nítida decodificada ocupa unos 4 MB.
 final class DecodedImageCache: @unchecked Sendable {
     static let shared = DecodedImageCache()
 
     private let cache: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
         cache.countLimit = 300
+        cache.totalCostLimit = 220 * 1024 * 1024
         return cache
     }()
 
@@ -49,6 +51,7 @@ final class DecodedImageCache: @unchecked Sendable {
     }
 
     func insert(_ image: UIImage, for key: String) {
-        cache.setObject(image, forKey: key as NSString)
+        let pixels = image.size.width * image.scale * image.size.height * image.scale
+        cache.setObject(image, forKey: key as NSString, cost: Int(pixels) * 4)
     }
 }

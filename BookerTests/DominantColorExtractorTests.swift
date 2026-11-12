@@ -75,6 +75,6 @@ struct DominantColorExtractorTests {
 
 @MainActor
 func inMemoryContext() throws -> ModelContext {
-    let container = try ModelContainer(for: Book.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let container = try ModelContainer(for: Book.self, ReadingNote.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     return ModelContext(container)
 }

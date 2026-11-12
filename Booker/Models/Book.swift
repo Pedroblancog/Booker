@@ -23,7 +23,11 @@ final class Book {
     /// Se modifica con `setRating(_:)`. Tiene otro nombre que el `rating`
     /// entero de la versión anterior para que SwiftData migre sin pedir un plan.
     private(set) var starRating: Double?
+    /// La conclusión que se escribe al terminarlo (antes, notas libres).
     var notes: String?
+    /// Comentarios apuntados mientras se lee. Se borran con el libro.
+    @Relationship(deleteRule: .cascade, inverse: \ReadingNote.book)
+    var readingNotes: [ReadingNote] = []
 
     var dateAdded: Date
     var dateFinished: Date?

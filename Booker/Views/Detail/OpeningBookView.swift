@@ -16,7 +16,8 @@ struct OpeningBookView<Page: View>: View {
     private static var openAngle: Double { -168 }
 
     var body: some View {
-        let pageHeight = pageWidth / DS.Layout.coverAspectRatio
+        // Las páginas tienen la proporción de la portada real.
+        let pageHeight = pageWidth / BookCoverView.aspectRatio(of: book)
 
         ZStack(alignment: .leading) {
             page
@@ -29,7 +30,7 @@ struct OpeningBookView<Page: View>: View {
 
             HingedCover(angle: isOpen ? Self.openAngle : 0) {
                 BookCoverView(book: book)
-                    .frame(width: pageWidth)
+                    .frame(width: pageWidth, height: pageHeight)
             } back: {
                 Endpaper(colorHex: book.dominantColorHex)
                     .frame(width: pageWidth, height: pageHeight)
@@ -121,7 +122,7 @@ struct FirstPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.s) {
-            Text(statusLine)
+            Text(book.statusLine)
                 .overlineStyle()
                 .lineLimit(2)
 
@@ -151,16 +152,14 @@ struct FirstPage: View {
         .padding([.top, .trailing, .bottom], DS.Spacing.m)
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
+}
 
-    private var statusLine: String {
-        switch book.status {
-        case .read:
-            if let finished = book.dateFinished {
-                return "Leído · \(finished.formatted(.dateTime.month(.wide).year()))"
-            }
-            return book.status.title
-        case .reading, .toRead:
-            return book.status.title
+extension Book {
+    /// "Leído · septiembre de 2026", "Leyendo", "Pendiente".
+    var statusLine: String {
+        if status == .read, let finished = dateFinished {
+            return "Leído · \(finished.formatted(.dateTime.month(.wide).year()))"
         }
+        return status.title
     }
 }

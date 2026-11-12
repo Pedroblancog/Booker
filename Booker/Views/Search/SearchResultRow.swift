@@ -6,8 +6,8 @@ struct SearchResultRow: View {
     let isInLibrary: Bool
 
     static let thumbnailWidth: CGFloat = 56
-    /// 56 pt a 3x, con margen.
-    static let thumbnailPixelSize = 200
+    /// Lado mayor: 56 pt de ancho a 3x son ~170 px, ~270 px de alto, con margen.
+    static let thumbnailPixelSize = 320
 
     var body: some View {
         HStack(alignment: .top, spacing: DS.Spacing.m) {

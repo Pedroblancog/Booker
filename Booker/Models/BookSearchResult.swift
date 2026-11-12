@@ -18,18 +18,17 @@ struct BookSearchResult: Identifiable, Hashable, Sendable {
 
     /// Miniatura para listas.
     var thumbnailURL: URL?
-    /// Portada de Google Books, la fuente principal.
+    /// Portada de Google Books a gran tamaño (unos 1000 × 1500 px).
     var googleCoverURL: URL?
-    /// Portadas de Open Library, en orden de preferencia. Se usan si Google
-    /// no tiene portada o la suya es de baja resolución.
+    /// Portadas de Open Library, en orden de preferencia. Como mucho miden
+    /// unos 300 × 500 px: son el último recurso.
     var openLibraryCoverURLs: [URL] = []
 
-    /// Portadas para verla en grande, en orden de preferencia: las de Open
-    /// Library a tamaño L (la miniatura de Google se ve borrosa a ese tamaño)
-    /// y, si no existen, la de Google.
+    /// Portadas para verla en grande, en orden de preferencia: la grande de
+    /// Google, las de Open Library y, al final, la miniatura.
     var previewCoverURLs: [URL] {
         var urls: [URL] = []
-        for url in openLibraryCoverURLs + [googleCoverURL, thumbnailURL].compactMap({ $0 }) where !urls.contains(url) {
+        for url in [googleCoverURL].compactMap({ $0 }) + openLibraryCoverURLs + [thumbnailURL].compactMap({ $0 }) where !urls.contains(url) {
             urls.append(url)
         }
         return urls

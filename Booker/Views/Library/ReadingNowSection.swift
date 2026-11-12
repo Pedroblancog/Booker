@@ -4,7 +4,10 @@ import SwiftUI
 /// revista. Con varios, se pasan de lado y cada uno se ajusta al centro.
 struct ReadingNowSection: View {
     let books: [Book]
-    let transitionNamespace: Namespace.ID
+    let coverFrames: CoverFrames
+    /// El libro que se está abriendo (su portada se oculta mientras tanto).
+    let openingID: String?
+    let open: (BookRoute) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.m) {
@@ -32,11 +35,13 @@ struct ReadingNowSection: View {
     }
 
     private func item(_ book: Book) -> some View {
-        NavigationLink(value: BookRoute(book: book, source: .readingNow)) {
+        let route = BookRoute(book: book, source: .readingNow)
+        return Button { open(route) } label: {
             HStack(alignment: .top, spacing: DS.Spacing.m) {
                 BookCoverView(book: book)
                     .frame(width: 104)
-                    .zoomTransitionSource(id: BookRoute.transitionID(book, .readingNow), in: transitionNamespace)
+                    .recordsCoverFrame(id: route.transitionID, in: coverFrames)
+                    .opacity(openingID == route.transitionID ? 0 : 1)
 
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     Text(book.title)

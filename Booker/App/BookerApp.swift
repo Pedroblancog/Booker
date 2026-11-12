@@ -7,7 +7,7 @@ struct BookerApp: App {
 
     init() {
         do {
-            container = try ModelContainer(for: Book.self)
+            container = try ModelContainer(for: Book.self, ReadingNote.self)
         } catch {
             fatalError("No se pudo abrir la base de datos: \(error)")
         }

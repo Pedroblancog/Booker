@@ -41,7 +41,7 @@ struct DiscoverView: View {
             await model.refreshIfNeeded(library: library, engine: engine)
         }
         .onChange(of: model.cards.map(\.id)) { _, _ in
-            ImageDataCache.shared.prefetch(model.cards.flatMap(\.book.previewCoverURLs))
+            ImageDataCache.shared.prefetch(model.cards.compactMap(\.book.previewCoverURLs.first))
         }
         .sensoryFeedback(.success, trigger: savedCount)
         .sensoryFeedback(.impact(weight: .light), trigger: discardedCount)

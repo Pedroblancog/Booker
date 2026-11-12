@@ -13,12 +13,15 @@ struct SearchResultSheet: View {
     @Environment(\.dominantColorExtractor) private var colorExtractor
 
     @State private var savingStatus: BookStatus?
+    /// La portada más nítida, en cuanto se encuentra (la que se guardará).
+    @State private var bestCoverURL: URL?
 
     var body: some View {
         ScrollView {
             VStack(spacing: DS.Spacing.xl) {
-                RemoteCoverView(urls: result.previewCoverURLs, title: result.title, author: result.authorLine)
-                    .frame(width: 150)
+                RemoteCoverView(urls: bestCoverURL.map { [$0] } ?? result.previewCoverURLs,
+                                title: result.title, author: result.authorLine)
+                    .frame(width: 170)
                     .padding(.top, DS.Spacing.xl)
 
                 VStack(spacing: DS.Spacing.xs) {
@@ -58,6 +61,10 @@ struct SearchResultSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(savingStatus != nil)
+        .task {
+            // Se queda en caché: al añadir el libro no se vuelve a descargar.
+            bestCoverURL = await coverProvider.bestCover(for: result)?.url
+        }
     }
 
     private var actions: some View {

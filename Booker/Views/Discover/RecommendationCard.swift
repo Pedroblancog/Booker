@@ -6,8 +6,11 @@ struct RecommendationCard: View {
     let recommendation: Recommendation
 
     @Environment(\.dominantColorExtractor) private var colorExtractor
+    @Environment(\.coverImageProvider) private var coverProvider
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var tintHex: String?
+    /// La portada más nítida, en cuanto se encuentra (la que se guardará).
+    @State private var bestCoverURL: URL?
 
     private var book: BookSearchResult { recommendation.book }
 
@@ -29,12 +32,10 @@ struct RecommendationCard: View {
         }
         .cardStyle()
         .accessibilityElement(children: .combine)
-        .task(id: book.previewCoverURLs) {
-            for url in book.previewCoverURLs {
-                guard let data = await ImageDataCache.shared.imageData(for: url) else { continue }
-                tintHex = await colorExtractor.dominantColorHex(from: data)
-                return
-            }
+        .task(id: book.id) {
+            guard let cover = await coverProvider.bestCover(for: book) else { return }
+            bestCoverURL = cover.url
+            tintHex = await colorExtractor.dominantColorHex(from: cover.data)
         }
     }
 
@@ -43,7 +44,8 @@ struct RecommendationCard: View {
         VStack(spacing: DS.Spacing.l) {
             Spacer(minLength: DS.Spacing.m)
 
-            RemoteCoverView(urls: book.previewCoverURLs, title: book.title, author: book.authorLine)
+            RemoteCoverView(urls: bestCoverURL.map { [$0] } ?? book.previewCoverURLs,
+                            title: book.title, author: book.authorLine)
                 .containerRelativeFrame(.horizontal) { width, _ in width * coverFraction }
 
             VStack(spacing: DS.Spacing.xs) {

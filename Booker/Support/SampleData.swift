@@ -50,7 +50,6 @@ enum SampleData {
                 title: "Los detectives salvajes",
                 authors: ["Roberto Bolaño"],
                 status: .reading,
-                notes: "Voy por la segunda parte.",
                 dateAdded: daysAgo(9)
             ),
             Book(
@@ -73,7 +72,12 @@ enum SampleData {
     static func seedIfEmpty(_ context: ModelContext) {
         let count = (try? context.fetchCount(FetchDescriptor<Book>())) ?? 0
         guard count == 0 else { return }
-        makeBooks().forEach(context.insert)
+        let books = makeBooks()
+        books.forEach(context.insert)
+        if let detectives = books.first(where: { $0.title == "Los detectives salvajes" }) {
+            detectives.addReadingNote(page: 17, text: "El realismo visceral: ¿existió de verdad?")
+            detectives.addReadingNote(page: 214, text: "Empieza la segunda parte. Cambian las voces en cada capítulo.")
+        }
         try? context.save()
     }
 
@@ -81,7 +85,7 @@ enum SampleData {
     static let previewContainer: ModelContainer = {
         do {
             let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-            let container = try ModelContainer(for: Book.self, configurations: configuration)
+            let container = try ModelContainer(for: Book.self, ReadingNote.self, configurations: configuration)
             seedIfEmpty(container.mainContext)
             return container
         } catch {
